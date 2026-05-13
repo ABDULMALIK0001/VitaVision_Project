@@ -14,6 +14,9 @@ ENV/
 # Streamlit
 .streamlit/secrets.toml
 
+# Generated app state
+reports/*.json
+
 # Jupyter
 .ipynb_checkpoints/
 
@@ -25,6 +28,7 @@ Thumbs.db
 
 # Local backups
 app_old_backup_*.py
+data/colab_outputs/
 
 # Large generated/model artifacts can be shared separately if needed
 *.pkl
@@ -33,3 +37,4 @@ app_old_backup_*.py
 *.keras
 *.pt
 *.pth
+!models/vitavision_unified_model.pkl

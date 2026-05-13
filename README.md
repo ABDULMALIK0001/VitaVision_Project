@@ -14,13 +14,27 @@ VitaVision is a Streamlit-based decision-support web app for interpreting vitami
 
 ## Current Decision Logic
 
-The current app classifies results using predefined reference ranges in `app.py`.
+The app keeps predefined reference ranges in `app.py` as the primary classification logic.
 
 - Below the lower reference limit: `Deficient`
 - Between the lower and upper reference limits: `Normal`
 - Above the upper reference limit: `Excessive`
 
-Model files may exist in the project, but the current Streamlit app does not yet use a trained machine learning model for prediction.
+The Streamlit app also loads the trained unified model from `models/vitavision_unified_model.pkl` and adds ML comparison columns to each analysis result:
+
+- `ML Prediction`
+- `ML Confidence`
+- `Model Agreement`
+
+This lets the app show the reference-range status and the trained model prediction side by side.
+
+## Official Modeling Pipeline
+
+The official data preparation and modeling workflow is `data/VitaVision_Colab_Full_Pipeline.ipynb`.
+
+It rebuilds the cleaned/labeled dataset, applies the same reference-range logic used by the app, removes invalid or unrealistic values from the modeling dataset, trains and compares models, and exports the model artifacts for use in Streamlit.
+
+Older notebooks in `data/` are kept as development history and references, but the full pipeline notebook is the version to use for the final project, report, and presentation.
 
 ## Requirements
 
@@ -43,6 +57,18 @@ Then open the local URL shown in the terminal, usually:
 ```text
 http://localhost:8501
 ```
+
+## Deploy Online
+
+The simplest hosting option is Streamlit Community Cloud.
+
+Use these settings:
+
+- Repository: `ABDULMALIK0001/VitaVision_Project`
+- Branch: `main`
+- Main file path: `app.py`
+
+The app requires `requirements.txt` and `models/vitavision_unified_model.pkl` to be present in the repository.
 
 ## Project Structure
 

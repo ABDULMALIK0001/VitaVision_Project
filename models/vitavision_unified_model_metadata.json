@@ -1,0 +1,40 @@
+{
+  "model_name": "VitaVision Unified Random Forest",
+  "model_file": "C:\\Users\\greek\\OneDrive\\\u0633\u0637\u062d \u0627\u0644\u0645\u0643\u062a\u0628\\VitaVision_Project0\\VitaVision_Project\\models\\vitavision_unified_model.pkl",
+  "selected_model": "Random Forest",
+  "logistic_regression_model_file": "C:\\Users\\greek\\OneDrive\\\u0633\u0637\u062d \u0627\u0644\u0645\u0643\u062a\u0628\\VitaVision_Project0\\VitaVision_Project\\models\\vitavision_logistic_regression_model.pkl",
+  "random_forest_model_file": "C:\\Users\\greek\\OneDrive\\\u0633\u0637\u062d \u0627\u0644\u0645\u0643\u062a\u0628\\VitaVision_Project0\\VitaVision_Project\\models\\vitavision_random_forest_model.pkl",
+  "model_comparison_file": "C:\\Users\\greek\\OneDrive\\\u0633\u0637\u062d \u0627\u0644\u0645\u0643\u062a\u0628\\VitaVision_Project0\\VitaVision_Project\\models\\vitavision_model_comparison.csv",
+  "features": [
+    "Age",
+    "Gender",
+    "Nutrient",
+    "Value"
+  ],
+  "target": "Label",
+  "classes": [
+    "Deficient",
+    "Normal",
+    "Excessive"
+  ],
+  "random_state": 42,
+  "split_strategy": "patient-level GroupShuffleSplit using SEQN",
+  "train_rows": 51438,
+  "validation_rows": 12705,
+  "test_rows": 16031,
+  "validation_baseline_accuracy": 0.7566312475403385,
+  "validation_baseline_macro_f1": 0.28715237327120113,
+  "logistic_regression_validation_accuracy": 0.7234946871310508,
+  "logistic_regression_validation_macro_f1": 0.6499382508980963,
+  "logistic_regression_test_accuracy": 0.7134926080718608,
+  "logistic_regression_test_macro_f1": 0.6412763136339051,
+  "random_forest_validation_accuracy": 0.9996064541519087,
+  "random_forest_validation_macro_f1": 0.9993197014854994,
+  "random_forest_test_accuracy": 0.9995009668766764,
+  "random_forest_test_macro_f1": 0.9991727163889061,
+  "validation_accuracy": 0.9996064541519087,
+  "validation_macro_f1": 0.9993197014854994,
+  "test_accuracy": 0.9995009668766764,
+  "test_macro_f1": 0.9991727163889061,
+  "nutrient_name_convention": "Use names such as Vitamin D, Vitamin B12, Vitamin E, Zinc, Ferritin"
+}
