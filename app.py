@@ -1038,6 +1038,8 @@ def section_title(text_value, size=26, icon=""):
 # =========================================
 # Navigation tabs
 # =========================================
+render_header()
+
 home_tab, dashboard_tab, about_tab, contact_tab = st.tabs([
     tr("Home", " الرئيسية"),
     tr("Dashboard", "لوحة التحكم"),
@@ -1049,7 +1051,7 @@ home_tab, dashboard_tab, about_tab, contact_tab = st.tabs([
 # Header
 # =========================================
 def render_header():
-    subtitle = tr("Smart Insight for Vitamin Health", "Smart Insight for Vitamin Health")
+    subtitle = tr("Smart Insight for Vitamin Health", "رؤية ذكية لصحة الفيتامينات")
     vision_shadow = (
         "0 2px 8px rgba(0,191,255,0.25)"
         if is_light_theme
@@ -2020,38 +2022,9 @@ def dashboard_signature(df):
     stable_df = df[signature_cols].copy().sort_values(signature_cols).reset_index(drop=True)
     return stable_df.to_json(orient="records", force_ascii=False)
 
-def record_dashboard_report(df):
-    if df.empty or "Nutrient" not in df.columns or "Status" not in df.columns:
-        return
-
-    signature = dashboard_signature(df)
-    if not signature:
-        return
-
-    if "dashboard_reports" not in st.session_state:
-        st.session_state["dashboard_reports"] = []
-
-    if st.session_state.get("dashboard_last_signature") == signature:
-        return
-
-    st.session_state["dashboard_reports"].append({
-        "created_at": pd.Timestamp.now(),
-        "results": df.copy(),
-        "signature": signature,
-    })
-    st.session_state["dashboard_last_signature"] = signature
-
 def dashboard_reports():
     reports = st.session_state.get("dashboard_reports", [])
     return [report for report in reports if isinstance(report.get("results"), pd.DataFrame)]
-
-def dashboard_latest_results(df):
-    reports = dashboard_reports()
-    if reports:
-        latest_df = reports[-1]["results"]
-        if isinstance(latest_df, pd.DataFrame) and not latest_df.empty:
-            return latest_df.copy()
-    return df.copy()
 
 def dashboard_days_since_last():
     reports = dashboard_reports()
@@ -2408,51 +2381,6 @@ def render_dashboard_header():
 </div>
 """)
 
-def render_dashboard_metric_cards_legacy(df):
-    status_series = df["Status"].astype(str) if "Status" in df.columns else pd.Series(dtype=str)
-    total_reports = max(len(dashboard_reports()), 1)
-    attention_cases = int(status_series.isin(["Deficient", "Excessive"]).sum())
-    tracked_nutrients = int(df["Nutrient"].dropna().nunique()) if "Nutrient" in df.columns else len(df)
-    improvement = dashboard_improvement_pct()
-
-    cards = [
-        {
-            "label": tr("Total Reports", "إجمالي التقارير"),
-            "value": total_reports,
-            "class": "",
-        },
-        {
-            "label": tr("Attention Cases", "حالات تحتاج متابعة"),
-            "value": attention_cases,
-            "class": "soft-red" if attention_cases else "soft-green",
-        },
-        {
-            "label": tr("Tracked Vitamins", "فيتامينات متابعة"),
-            "value": tracked_nutrients,
-            "class": "soft-green",
-        },
-        {
-            "label": tr("Improvement", "تحسن"),
-            "value": f"{improvement:+g}%",
-            "class": "soft-green" if improvement >= 0 else "soft-red",
-        },
-    ]
-
-    cards_html = ""
-    for card in cards:
-        cards_html += f"""
-        <div class="vv-dashboard-card {card['class']}">
-            <div class="vv-dashboard-card-label">{safe_html(card['label'])}</div>
-            <div class="vv-dashboard-card-value">{safe_html(card['value'])}</div>
-        </div>
-        """
-
-    st.html(f"""
-<div class="vv-dashboard-metrics">
-    {cards_html}
-</div>
-""")
-
 def render_dashboard_metric_cards(df):
     status_series = df["Status"].astype(str) if "Status" in df.columns else pd.Series(dtype=str)
     total_reports = max(len(dashboard_reports()), 1)
@@ -2646,173 +2574,6 @@ def render_dashboard_snapshot(df):
     </div>
 </div>
 """)
-
-def apply_dashboard_plot_layout(fig, height=390):
-    fig.update_layout(
-        height=height,
-        plot_bgcolor="#FFFFFF",
-        paper_bgcolor="#FFFFFF",
-        font=dict(color="#4B5563", family="Plus Jakarta Sans, Cairo"),
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#4B5563")),
-        legend_title_text="",
-        title=dict(font=dict(color="#111827", size=15)),
-        margin=dict(l=20, r=20, t=55, b=45),
-    )
-    return fig
-
-def dashboard_timeline_points(selected_nutrient, fallback_df):
-    points = []
-    reports = dashboard_reports()
-    if not reports and not fallback_df.empty:
-        reports = [{
-            "created_at": pd.Timestamp.now(),
-            "results": fallback_df,
-        }]
-
-    for index, report in enumerate(reports, start=1):
-        report_df = report.get("results")
-        if not isinstance(report_df, pd.DataFrame) or report_df.empty:
-            continue
-        nutrient_rows = report_df[
-            report_df["Nutrient"].astype(str) == str(selected_nutrient)
-        ].copy()
-        if nutrient_rows.empty:
-            continue
-
-        row = nutrient_rows.iloc[-1]
-        value = pd.to_numeric(row.get("Value"), errors="coerce")
-        if pd.isna(value):
-            continue
-
-        created_at = pd.Timestamp(report.get("created_at", pd.Timestamp.now()))
-        label = tr(
-            created_at.strftime("%b %d, %H:%M"),
-            created_at.strftime("%d/%m %H:%M"),
-        )
-        points.append({
-            "label": label,
-            "value": float(value),
-            "status": row.get("Status", "Unknown"),
-            "unit": row.get("Unit", ""),
-            "reference_low": row.get("Low", None),
-            "reference_high": row.get("High", None),
-            "reading": index,
-        })
-
-    return points
-
-def render_dashboard_timeline(df):
-    nutrient_options = dashboard_nutrient_options(df)
-    if not nutrient_options:
-        st.info(tr(
-            "Timeline will appear after nutrient data is available.",
-            "سيظهر الرسم الزمني بعد توفر بيانات العناصر."
-        ))
-        return
-
-    current_selection = st.session_state.get("dashboard_timeline_nutrient")
-    if current_selection not in nutrient_options:
-        st.session_state["dashboard_timeline_nutrient"] = nutrient_options[0]
-
-    with st.container(border=True):
-        if is_arabic:
-            control_col, title_col = st.columns([1.05, 4])
-        else:
-            title_col, control_col = st.columns([4, 1.05])
-
-        with title_col:
-            align = "right" if is_arabic else "left"
-            st.html(f"""
-<div style="text-align:{align}; padding:6px 4px 0;">
-    <div class="vv-dashboard-panel-title">{safe_html(tr("Values Over Time", "تطور القيم عبر الزمن"))}</div>
-    <div class="vv-dashboard-panel-subtitle">{safe_html(tr(
-        "Session readings",
-        f"{max(len(dashboard_reports()), 1)} نقطة قياس"
-    ))}</div>
-</div>
-""")
-
-        with control_col:
-            selected_nutrient = st.selectbox(
-                tr("Nutrient", "العنصر"),
-                nutrient_options,
-                index=nutrient_options.index(st.session_state["dashboard_timeline_nutrient"]),
-                format_func=nutrient_display_name,
-                label_visibility="collapsed",
-                key="dashboard_timeline_nutrient",
-            )
-
-        points = dashboard_timeline_points(selected_nutrient, df)
-        if not points:
-            st.info(tr(
-                "No numeric readings are available for this nutrient.",
-                "لا توجد قراءات رقمية متاحة لهذا العنصر."
-            ))
-            return
-
-        values = [point["value"] for point in points]
-        labels = [point["label"] for point in points]
-        mode = "lines+markers" if len(points) > 1 else "markers+text"
-
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=labels,
-            y=values,
-            mode=mode,
-            text=[f"{value:g}" for value in values] if len(points) == 1 else None,
-            textposition="top center",
-            line=dict(color="#1aa37a", width=3),
-            marker=dict(
-                size=10,
-                color="#b87418",
-                line=dict(color="#ffffff", width=2),
-            ),
-            hovertemplate="%{x}<br>%{y:g}<extra></extra>",
-            name=nutrient_display_name(selected_nutrient),
-        ))
-
-        low_values = [
-            pd.to_numeric(point["reference_low"], errors="coerce")
-            for point in points
-            if point.get("reference_low") is not None
-        ]
-        high_values = [
-            pd.to_numeric(point["reference_high"], errors="coerce")
-            for point in points
-            if point.get("reference_high") is not None
-        ]
-        numeric_refs = [
-            float(value) for value in low_values + high_values
-            if not pd.isna(value)
-        ]
-        y_candidates = values + numeric_refs
-        y_min = min(y_candidates) if y_candidates else 0
-        y_max = max(y_candidates) if y_candidates else 1
-        padding = max((y_max - y_min) * 0.25, 1)
-
-        fig.update_layout(
-            height=310,
-            plot_bgcolor="#ffffff",
-            paper_bgcolor="#ffffff",
-            font=dict(color="#4B5563", family="Plus Jakarta Sans, Cairo"),
-            margin=dict(l=34, r=22, t=18, b=38),
-            xaxis=dict(
-                showgrid=False,
-                zeroline=False,
-                tickfont=dict(color="#4B5563", size=11),
-                linecolor="#6b7280",
-            ),
-            yaxis=dict(
-                range=[max(y_min - padding, 0), y_max + padding],
-                gridcolor="#e8ecef",
-                griddash="dot",
-                zeroline=False,
-                tickfont=dict(color="#4B5563", size=11),
-                linecolor="#6b7280",
-            ),
-            showlegend=False,
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 def dashboard_chart_rows(df):
     chart_rows = []
@@ -3045,54 +2806,6 @@ def selected_report_from_history(reports):
         key="selected_report_id",
     )
     return next(report for report in reports if report["report_id"] == selected_id)
-
-def render_latest_report_summary_legacy(report):
-    counts = report.get("summary", {})
-    follow_up = counts.get("deficient", 0) + counts.get("excessive", 0) + counts.get("invalid", 0)
-    report_df = report_to_df(report)
-    model_agreement_value, model_agreement_class = model_agreement_dashboard_value(report_df)
-    cards = [
-        {
-            "label": tr("Latest Report", "آخر تقرير"),
-            "value": report_display_date(report),
-            "class": "soft-blue",
-        },
-        {
-            "label": tr("Needs Follow-up", "تحتاج متابعة"),
-            "value": follow_up,
-            "class": "soft-amber" if follow_up else "soft-green",
-        },
-        {
-            "label": tr("Normal Results", "النتائج الطبيعية"),
-            "value": counts.get("normal", 0),
-            "class": "soft-green",
-        },
-        {
-            "label": tr("Model Agreement", "توافق الموديل"),
-            "value": model_agreement_value,
-            "class": model_agreement_class,
-        },
-        {
-            "label": tr("Overall Status", "الحالة العامة"),
-            "value": report_overall_status_text(report.get("overall_status", "")),
-            "class": "soft-red" if report.get("overall_status") == "Needs Review" else "",
-        },
-    ]
-
-    cards_html = ""
-    for card in cards:
-        cards_html += f"""
-        <div class="vv-dashboard-card {card['class']}">
-            <div class="vv-dashboard-card-label">{safe_html(card['label'])}</div>
-            <div class="vv-dashboard-card-value" style="font-size:24px;">{safe_html(card['value'])}</div>
-        </div>
-        """
-
-    st.html(f"""
-<div class="vv-dashboard-metrics">
-    {cards_html}
-</div>
-""")
 
 def render_latest_report_summary(report, reports):
     counts = report.get("summary", {})
@@ -3521,27 +3234,6 @@ def render_report_trends(reports, selected_report):
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-def render_report_dashboard_legacy(reports):
-    latest = reports[-1]
-    render_latest_report_summary_legacy(latest)
-    render_report_history_table(reports)
-
-    selected_report = selected_report_from_history(reports)
-    selected_df = report_to_df(selected_report)
-
-    section_title(tr("Selected Report", "التقرير المحدد"), 22, "")
-    st.caption(report_option_label(selected_report))
-    render_report_actions(selected_report, selected_df)
-
-    if selected_df.empty:
-        st.info(tr("This report has no saved results.", "هذا التقرير لا يحتوي على نتائج محفوظة."))
-        return
-
-    render_dashboard_result_cards(selected_df)
-    render_report_trends(reports, selected_report)
-    render_dashboard_recommendations(selected_df)
-    render_dashboard_snapshot(selected_df)
-
 def render_report_dashboard(reports):
     latest = reports[-1]
     latest_df = report_to_df(latest)
@@ -3608,8 +3300,6 @@ if st.session_state.get("language_changed", False):
 # HOME TAB
 # =========================================
 with home_tab:
-    render_header()
-
     section_title(tr("Input Method", "طريقة الإدخال"), icon="")
 
     input_mode = st.radio(
@@ -3800,30 +3490,16 @@ with home_tab:
     results_df = st.session_state["results_df"]
 
     if not results_df.empty:
+        # ── Step 1: Summary stats ─────────────
         section_title(tr("Results Summary", "ملخص النتائج"), 26, "")
         render_summary_stats(results_df)
 
-        section_title(tr("Results Table", "جدول النتائج"), 22, "")
-        render_results_table(results_df)
-
-        section_title(tr("Smart Result Cards", "بطاقات النتائج الذكية"), 22, "")
-        for _, row in results_df.iterrows():
-            render_result_card(row)
-
-        # ── Visualizations ────────────────────
-        section_title(tr("Visualizations", "الرسوم البيانية"), 26, "")
-
+        # ── Step 2: Status Distribution chart ─
         valid_results = results_df[
             results_df["Status"].isin(["Deficient", "Normal", "Excessive"])
         ].copy()
 
         if not valid_results.empty:
-            color_map = {"Deficient": "#FF4B4B", "Normal": "#1DB954", "Excessive": "#FFA500"}
-
-            
-
-            section_title(tr("Status Distribution", "توزيع الحالات"), 20)
-
             if is_arabic:
                 valid_results["Status_Display"] = valid_results["Status"].map({
                     "Deficient": "ناقص",
@@ -3867,24 +3543,12 @@ with home_tab:
             )
             st.plotly_chart(fig_summary, use_container_width=True, config={"displayModeBar": False})
 
-            section_title(tr("Reference Range Visualization", "مقارنة القيمة بالنطاق الطبيعي"), 20)
+        # ── Step 3: Smart Result Cards ────────
+        section_title(tr("Detailed Results", "تفاصيل النتائج"), 22, "")
+        for _, row in results_df.iterrows():
+            render_result_card(row)
 
-        for i, row in valid_results.reset_index(drop=True).iterrows():
-            fig_ref = create_reference_chart(row)
-            if fig_ref is not None:
-                st.plotly_chart(
-                    fig_ref,
-                    use_container_width=True,
-                    config={
-                        "displayModeBar": False,
-                        "scrollZoom": False,
-                        "doubleClick": False,
-                        "staticPlot": True
-                    },
-                    key=f"ref_chart_{i}"
-                )
-
-        # Invalid warnings
+        # ── Invalid warnings ──────────────────
         invalid_results = results_df[results_df["Status"] == "Invalid"].copy()
         if not invalid_results.empty:
             section_title(tr("Input Warnings", "تنبيهات الإدخال"), 22, "⚠️")
@@ -3894,8 +3558,7 @@ with home_tab:
                     f"قيمة {row['Nutrient']} ({row['Value']}) تبدو غير منطقية. يرجى التأكد من المدخلات."
                 ))
 
-        # Download
-        section_title(tr("Download Results", "تحميل النتائج"), 22, "")
+        # ── Step 4: Download ──────────────────
         csv_data = results_df.to_csv(index=False)
         st.download_button(
             label=f"  {tr('Download Results CSV', 'تحميل النتائج CSV')}",
@@ -3939,7 +3602,6 @@ with dashboard_tab:
 # ABOUT TAB
 # =========================================
 with about_tab:
-    render_header()
     dir_val = "rtl" if is_arabic else "ltr"
     align   = "right" if is_arabic else "left"
 
@@ -4033,7 +3695,6 @@ with about_tab:
 # CONTACT TAB
 # =========================================
 with contact_tab:
-    render_header()
     dir_val = "rtl" if is_arabic else "ltr"
     align   = "right" if is_arabic else "left"
 
