@@ -7,6 +7,9 @@ import json
 import hashlib
 import joblib
 from pathlib import Path
+from datetime import datetime, date, timedelta
+
+import dashboard_v2
 
 # =========================================
 # Page configuration
@@ -1036,18 +1039,6 @@ def section_title(text_value, size=26, icon=""):
     """)
 
 # =========================================
-# Navigation tabs
-# =========================================
-render_header()
-
-home_tab, dashboard_tab, about_tab, contact_tab = st.tabs([
-    tr("Home", " الرئيسية"),
-    tr("Dashboard", "لوحة التحكم"),
-    tr("About", "عن المشروع"),
-    tr("Contact", "تواصل معنا")
-])
-
-# =========================================
 # Header
 # =========================================
 def render_header():
@@ -1092,6 +1083,17 @@ def render_header():
     "></div>
 </div>
 """)
+
+# =========================================
+# Navigation tabs
+# =========================================
+render_header()
+
+home_tab, dashboard_tab, about_tab = st.tabs([
+    tr("Home", " الرئيسية"),
+    tr("Dashboard", "لوحة التحكم"),
+    tr("About", "حول"),
+])
 
 # =========================================
 # Reference ranges (unchanged)
@@ -1692,85 +1694,6 @@ def render_result_card(row):
 """)
 
 # =========================================
-# Styled results table
-# =========================================
-def render_results_table(df):
-    dir_val = "rtl" if is_arabic else "ltr"
-    align   = "right" if is_arabic else "left"
-
-    headers = [
-        tr("Nutrient","العنصر"), tr("Value","القيمة"), tr("Unit","الوحدة"),
-        tr("Status","الحالة"), tr("ML Prediction","تنبؤ الموديل"), tr("Model Agreement","توافق الموديل"),
-        tr("Low","الأدنى"), tr("High","الأقصى"),
-        tr("Age","العمر"), tr("Gender","الجنس"),
-    ]
-
-    header_cells = "".join(
-        f'<th style="padding:11px 16px; font-size:12px; font-weight:700; color:#7A9BB5; '
-        f'letter-spacing:0.5px; text-transform:uppercase; background:rgba(0,191,255,0.05); '
-        f'white-space:nowrap; text-align:{align};">{h}</th>'
-        for h in headers
-    )
-
-    rows_html = ""
-    for _, row in df.iterrows():
-        status  = row.get("Status", "")
-        color   = status_color(status)
-        icon    = status_icon(status)
-        ml_prediction = str(row.get("ML Prediction", MODEL_UNAVAILABLE))
-        ml_confidence = str(row.get("ML Confidence", MODEL_UNAVAILABLE))
-        ml_color = status_color(ml_prediction) if ml_prediction in MODEL_VALID_STATUSES else "#7A9BB5"
-        ml_label = ml_prediction_text(ml_prediction)
-        if ml_confidence and ml_confidence != MODEL_UNAVAILABLE:
-            ml_label = f"{ml_label} ({ml_confidence})"
-        agreement = str(row.get("Model Agreement", MODEL_UNAVAILABLE))
-        agreement_color = model_agreement_color(agreement)
-        gender_display = tr("Male","ذكر") if str(row.get("Gender","")).lower() in ["male","1","m"] else tr("Female","أنثى")
-
-        cells = [
-            f'<td style="font-weight:700; color:#F0F4F8;">{nutrient_display_name(row.get("Nutrient",""))}</td>',
-            f'<td style="font-weight:700; color:{color}; font-size:16px;">{row.get("Value","")}</td>',
-            f'<td style="color:#7A9BB5;">{row.get("Unit","")}</td>',
-            f'<td><span style="display:inline-flex; align-items:center; gap:5px; padding:4px 12px; '
-            f'border-radius:999px; font-size:12px; font-weight:700; color:{color}; '
-            f'background:{color}18; border:1px solid {color}44;">'
-            f'{icon} {status_text(status)}</span></td>',
-            f'<td><span style="display:inline-flex; align-items:center; gap:5px; padding:4px 12px; '
-            f'border-radius:999px; font-size:12px; font-weight:700; color:{ml_color}; '
-            f'background:{ml_color}18; border:1px solid {ml_color}44;">'
-            f'{ml_label}</span></td>',
-            f'<td><span style="display:inline-flex; align-items:center; gap:5px; padding:4px 12px; '
-            f'border-radius:999px; font-size:12px; font-weight:700; color:{agreement_color}; '
-            f'background:{agreement_color}18; border:1px solid {agreement_color}44;">'
-            f'{model_agreement_text(agreement)}</span></td>',
-            f'<td style="color:#9AAAB8;">{row.get("Low","")}</td>',
-            f'<td style="color:#9AAAB8;">{row.get("High","")}</td>',
-            f'<td style="color:#9AAAB8;">{row.get("Age","")}</td>',
-            f'<td style="color:#9AAAB8;">{gender_display}</td>',
-        ]
-
-        row_cells = "".join(
-            f'<td style="padding:12px 16px; font-size:14px; text-align:{align}; '
-            f'border-bottom:1px solid rgba(255,255,255,0.04);">{cell[cell.find(">")+1:]}'
-            for cell in cells
-        )
-        rows_html += f'<tr style="transition:background 0.15s;" onmouseover="this.style.background=\'rgba(0,191,255,0.04)\'" onmouseout="this.style.background=\'transparent\'">{row_cells}</tr>'
-
-    st.html(f"""
-<div style="overflow-x:auto; border-radius:16px; border:1px solid rgba(0,191,255,0.18);
-            box-shadow:0 4px 24px rgba(0,0,0,0.20); direction:{dir_val};">
-    <table style="width:100%; border-collapse:collapse; font-family:'Plus Jakarta Sans','Cairo',sans-serif;">
-        <thead>
-            <tr>{header_cells}</tr>
-        </thead>
-        <tbody>
-            {rows_html}
-        </tbody>
-    </table>
-</div>
-""")
-
-# =========================================
 # Summary stats bar
 # =========================================
 def render_summary_stats(df):
@@ -1806,6 +1729,7 @@ def render_summary_stats(df):
 DASHBOARD_VALID_STATUSES = ["Normal", "Deficient", "Excessive"]
 DASHBOARD_STATUS_ORDER = ["Normal", "Deficient", "Excessive", "Invalid", "Unknown", "Error"]
 REPORTS_FILE = Path(__file__).resolve().parent / "reports" / "vitavision_reports.json"
+REMINDER_FILE = Path(__file__).resolve().parent / "reports" / "reminder.json"
 REPORT_SCHEMA_VERSION = 1
 REPORT_RESULT_COLUMNS = [
     "Age", "Gender", "Nutrient", "Value", "Unit", "Low", "High",
@@ -1925,6 +1849,42 @@ def save_report_history(reports):
         encoding="utf-8",
     )
 
+def load_reminder():
+    if not REMINDER_FILE.exists():
+        return None
+    try:
+        data = json.loads(REMINDER_FILE.read_text(encoding="utf-8"))
+        return data
+    except Exception:
+        return None
+
+def save_reminder(next_date, interval_months):
+    REMINDER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "next_test_date": next_date.isoformat(),
+        "interval_months": interval_months,
+        "created_at": datetime.now().isoformat(),
+    }
+    REMINDER_FILE.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+def delete_reminder():
+    if REMINDER_FILE.exists():
+        REMINDER_FILE.unlink()
+
+def days_until_next_test():
+    reminder = load_reminder()
+    if not reminder:
+        return None, None
+    try:
+        next_date = date.fromisoformat(reminder["next_test_date"])
+        delta = (next_date - date.today()).days
+        return delta, next_date
+    except Exception:
+        return None, None
+
 def refresh_report_history_state():
     st.session_state["report_history"] = load_report_history()
 
@@ -1988,46 +1948,16 @@ def report_display_date(report):
     if pd.isna(created_at):
         return tr("Unknown date", "تاريخ غير معروف")
     return tr(
-        created_at.strftime("%b %d, %Y %H:%M"),
-        created_at.strftime("%Y/%m/%d %H:%M"),
+        created_at.strftime("%b %d, %Y"),
+        created_at.strftime("%Y/%m/%d"),
     )
 
 def latest_report():
     reports = get_report_history()
     return reports[-1] if reports else None
 
-def dashboard_status_options(df):
-    if "Status" not in df.columns:
-        return []
-    seen = [str(status) for status in df["Status"].dropna().unique().tolist()]
-    ordered = [status for status in DASHBOARD_STATUS_ORDER if status in seen]
-    extras = sorted([status for status in seen if status not in DASHBOARD_STATUS_ORDER])
-    return ordered + extras
-
-def dashboard_nutrient_options(df):
-    if "Nutrient" not in df.columns:
-        return []
-    nutrients = [str(nutrient) for nutrient in df["Nutrient"].dropna().unique().tolist()]
-    return sorted(nutrients, key=lambda value: nutrient_display_name(value))
-
-def dashboard_signature(df):
-    if df.empty:
-        return ""
-    signature_cols = [
-        col for col in ["Nutrient", "Value", "Unit", "Low", "High", "Status"]
-        if col in df.columns
-    ]
-    if not signature_cols:
-        return ""
-    stable_df = df[signature_cols].copy().sort_values(signature_cols).reset_index(drop=True)
-    return stable_df.to_json(orient="records", force_ascii=False)
-
-def dashboard_reports():
-    reports = st.session_state.get("dashboard_reports", [])
-    return [report for report in reports if isinstance(report.get("results"), pd.DataFrame)]
-
 def dashboard_days_since_last():
-    reports = dashboard_reports()
+    reports = get_report_history()
     if not reports:
         return 0
     last_date = reports[-1].get("created_at", pd.Timestamp.now())
@@ -2037,332 +1967,161 @@ def dashboard_days_since_last():
     except Exception:
         return 0
 
-def dashboard_abnormal_count(df):
-    if "Status" not in df.columns:
-        return 0
-    return int(df["Status"].isin(["Deficient", "Excessive"]).sum())
-
-def model_agreement_dashboard_value(df):
-    if df.empty or "Model Agreement" not in df.columns:
-        return tr("N/A", "غير متوفر"), ""
-
-    agreement_series = df["Model Agreement"].astype(str)
-    available = agreement_series[agreement_series.isin(["Agree", "Different"])]
-    if available.empty:
-        return tr("N/A", "غير متوفر"), ""
-
-    agree_count = int((available == "Agree").sum())
-    agreement_percent = round((agree_count / len(available)) * 100)
-    card_class = "soft-green" if agreement_percent >= 90 else "soft-amber"
-    return f"{agreement_percent}%", card_class
-
-def dashboard_improvement_pct():
-    reports = dashboard_reports()
-    if len(reports) < 2:
-        return 0
-
-    previous_df = reports[-2]["results"]
-    latest_df = reports[-1]["results"]
-    previous_score = max(dashboard_abnormal_count(previous_df), 1)
-    latest_score = dashboard_abnormal_count(latest_df)
-    return round(((previous_score - latest_score) / previous_score) * 100)
-
 def render_dashboard_styles():
     st.markdown("""
-<style>
-.vv-dashboard-page {
-    direction: inherit;
-}
-.vv-dashboard-header {
-    margin: 10px 0 24px;
-}
+.vv-dashboard-header { margin: 10px 0 20px; }
 .vv-dashboard-title {
     font-family: 'Plus Jakarta Sans','Cairo',sans-serif;
-    font-size: 30px;
-    font-weight: 800;
-    line-height: 1.15;
-    color: var(--text-main);
-    margin: 0 0 6px;
+    font-size: 28px; font-weight: 800; line-height: 1.15;
+    color: var(--text-main); margin: 0 0 4px;
 }
-.vv-dashboard-subtitle {
-    color: var(--text-muted);
-    font-size: 14px;
-    font-weight: 500;
+.vv-dashboard-subtitle { color: var(--text-muted); font-size: 13px; font-weight: 500; }
+
+/* ── Overall health banner ── */
+.vv-health-banner {
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin: 0 0 22px;
+    display: flex; align-items: center; gap: 16px;
+    border: 1px solid;
 }
+.vv-health-banner-icon { font-size: 32px; flex-shrink: 0; }
+.vv-health-banner-title {
+    font-size: 18px; font-weight: 800;
+    font-family: 'Plus Jakarta Sans','Cairo',sans-serif;
+    margin-bottom: 4px;
+}
+.vv-health-banner-text { font-size: 13px; line-height: 1.6; opacity: 0.85; }
+
+/* ── KPI cards ── */
 .vv-dashboard-metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin: 8px 0 24px;
+    gap: 12px; margin: 0 0 22px;
 }
 .vv-dashboard-card {
-    min-height: 110px;
-    border: 1px solid #dfe7e5;
     border-radius: 12px;
-    padding: 22px 22px;
-    background: #ffffff;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    padding: 18px 20px;
+    border: 1px solid rgba(0,191,255,0.15);
+    background: rgba(0,191,255,0.04);
+    display: flex; flex-direction: column; gap: 10px;
 }
 .vv-dashboard-card.soft-green {
-    background: #dff3ee;
-    border-color: #dff3ee;
-}
-.vv-dashboard-card.soft-red {
-    background: #fde9e9;
-    border-color: #fde9e9;
+    background: rgba(29,185,84,0.08);
+    border-color: rgba(29,185,84,0.25);
 }
 .vv-dashboard-card.soft-amber {
-    background: #fff3dd;
-    border-color: #f3d49c;
+    background: rgba(255,165,0,0.08);
+    border-color: rgba(255,165,0,0.25);
+}
+.vv-dashboard-card.soft-red {
+    background: rgba(255,75,75,0.08);
+    border-color: rgba(255,75,75,0.25);
 }
 .vv-dashboard-card.soft-blue {
-    background: #e7f3ff;
-    border-color: #c9def5;
+    background: rgba(0,191,255,0.08);
+    border-color: rgba(0,191,255,0.25);
 }
 .vv-dashboard-card-label {
-    color: #6b7280;
-    font-size: 13px;
-    font-weight: 600;
+    color: #7A9BB5; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
 }
 .vv-dashboard-card-value {
-    color: #062f2f;
-    font-size: 30px;
-    font-weight: 800;
-    line-height: 1;
+    color: #F0F4F8; font-size: 26px; font-weight: 800; line-height: 1;
 }
-.vv-dashboard-panel-title {
-    color: #111827;
-    font-family: 'Plus Jakarta Sans','Cairo',sans-serif;
-    font-size: 19px;
-    font-weight: 800;
-    margin: 2px 0 4px;
-}
-.vv-dashboard-panel-subtitle {
-    color: #6b7280;
-    font-size: 13px;
-}
-.vv-dashboard-results-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 14px;
-    margin: 14px 0 28px;
-}
-.vv-dashboard-result-card {
-    min-height: 156px;
-    background: #ffffff;
-    border: 1px solid #dfe7e5;
-    border-left: 6px solid #9ca3af;
-    border-radius: 12px;
-    padding: 16px 17px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-.vv-dashboard-result-card.normal {
-    background: #e8f5e9;
-    border-color: #b7dfbd;
-    border-left-color: #1DB954;
-}
-.vv-dashboard-result-card.deficient {
-    background: #ffebee;
-    border-color: #f4b8c0;
-    border-left-color: #FF4B4B;
-}
-.vv-dashboard-result-card.excessive {
-    background: #fff3e0;
-    border-color: #f1c88d;
-    border-left-color: #FFA500;
-}
-.vv-dashboard-result-card.invalid,
-.vv-dashboard-result-card.unknown,
-.vv-dashboard-result-card.error {
-    background: #f4f7fb;
-    border-color: #d8e0ea;
-    border-left-color: #6b7280;
-}
+.vv-dashboard-panel-subtitle { color: #7A9BB5; font-size: 13px; }
 .vv-dashboard-status-pill {
-    width: fit-content;
-    border-radius: 999px;
-    padding: 5px 10px;
-    background: rgba(255,255,255,0.72);
-    color: #111827;
-    font-size: 12px;
-    font-weight: 800;
+    width: fit-content; border-radius: 999px; padding: 4px 10px;
+    background: rgba(255,255,255,0.1); color: #F0F4F8;
+    font-size: 11px; font-weight: 800;
 }
-.vv-dashboard-result-name {
-    color: #111827;
-    font-size: 17px;
-    font-weight: 800;
-    margin-top: 14px;
-}
-.vv-dashboard-result-value {
-    color: #062f2f;
-    font-size: 24px;
-    font-weight: 800;
-    line-height: 1.1;
-    margin-top: 8px;
-}
-.vv-dashboard-result-range {
-    color: #4b5563;
-    font-size: 12px;
-    font-weight: 600;
-    margin-top: 8px;
-}
+
+/* ── Tracking cards ── */
 .vv-tracking-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
-    gap: 14px;
-    margin: 14px 0 26px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px; margin: 12px 0 24px;
 }
 .vv-tracking-card {
-    min-height: 230px;
     border-radius: 12px;
-    border: 1px solid #dfe7e5;
-    border-left: 6px solid #9ca3af;
-    background: #ffffff;
-    padding: 17px 18px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: 5px solid #9ca3af;
+    background: rgba(255,255,255,0.04);
+    padding: 16px 17px;
+    display: flex; flex-direction: column; justify-content: space-between;
 }
-.vv-tracking-card.normal {
-    border-left-color: #1DB954;
-}
-.vv-tracking-card.deficient {
-    border-left-color: #FF4B4B;
-}
-.vv-tracking-card.excessive {
-    border-left-color: #FFA500;
-}
+.vv-tracking-card.normal  { border-left-color: #1DB954; background: rgba(29,185,84,0.05); }
+.vv-tracking-card.deficient { border-left-color: #FF4B4B; background: rgba(255,75,75,0.05); }
+.vv-tracking-card.excessive { border-left-color: #FFA500; background: rgba(255,165,0,0.05); }
 .vv-tracking-card.invalid,
 .vv-tracking-card.unknown,
-.vv-tracking-card.error {
-    border-left-color: #6b7280;
-}
-.vv-tracking-name {
-    color: #111827;
-    font-size: 18px;
-    font-weight: 800;
-}
+.vv-tracking-card.error { border-left-color: #6b7280; }
+.vv-tracking-name { color: #F0F4F8; font-size: 16px; font-weight: 800; }
 .vv-tracking-value {
-    color: #062f2f;
-    font-size: 28px;
-    font-weight: 800;
-    line-height: 1.1;
-    margin-top: 8px;
+    color: #00BFFF; font-size: 26px; font-weight: 800;
+    line-height: 1.1; margin-top: 6px;
 }
-.vv-tracking-meta {
-    color: #4b5563;
-    font-size: 12.5px;
-    font-weight: 600;
-    line-height: 1.55;
-    margin-top: 7px;
-}
+.vv-tracking-meta { color: #7A9BB5; font-size: 12px; font-weight: 600; margin-top: 6px; line-height: 1.5; }
 .vv-tracking-delta {
-    width: fit-content;
-    margin-top: 10px;
-    border-radius: 999px;
-    padding: 5px 10px;
-    background: #eef6ff;
-    color: #145089;
-    font-size: 12px;
-    font-weight: 800;
+    width: fit-content; margin-top: 8px; border-radius: 999px;
+    padding: 4px 10px; background: rgba(0,191,255,0.10);
+    color: #00BFFF; font-size: 12px; font-weight: 800;
 }
 .vv-tracking-warning {
-    margin-top: 9px;
-    border-radius: 9px;
-    padding: 8px 10px;
-    background: #fff8e8;
-    color: #7a4d0b;
-    font-size: 12px;
-    font-weight: 700;
+    margin-top: 8px; border-radius: 8px; padding: 7px 10px;
+    background: rgba(255,165,0,0.10); color: #FFA500;
+    font-size: 12px; font-weight: 700;
 }
-.vv-sparkline {
-    width: 100%;
-    height: 52px;
-    margin-top: 14px;
-}
+
+/* ── Sparkline ── */
+.vv-sparkline { width: 100%; height: 48px; margin-top: 12px; }
 .vv-sparkline-empty {
-    height: 52px;
-    margin-top: 14px;
-    border-radius: 10px;
-    background: #f5f7fa;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
+    height: 48px; margin-top: 12px; border-radius: 8px;
+    background: rgba(255,255,255,0.04); color: #7A9BB5;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
 }
-.vv-dashboard-recommendations {
-    background: #ffffff;
-    border: 1px solid #dfe7e5;
-    border-radius: 12px;
-    padding: 22px 24px;
-    margin: 18px 0 26px;
-}
-.vv-dashboard-recommendation-item {
-    border-top: 1px solid #edf1f4;
-    padding: 14px 0;
-}
-.vv-dashboard-recommendation-item:first-child {
-    border-top: none;
-    padding-top: 4px;
-}
-.vv-dashboard-recommendation-title {
-    color: #111827;
-    font-weight: 800;
-    font-size: 14px;
-    margin-bottom: 6px;
-}
-.vv-dashboard-recommendation-text {
-    color: #4b5563;
-    font-size: 13px;
-    line-height: 1.65;
-}
-.vv-dashboard-disclaimer {
-    margin-top: 10px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: #fff8e8;
-    color: #7a4d0b;
-    font-size: 12.5px;
-    font-weight: 700;
-}
-.vv-dashboard-alert {
-    margin-top: 20px;
-    background: #fff3dd;
-    border: 1px solid #f3d49c;
-    border-radius: 10px;
+
+/* ── Reminder card ── */
+.vv-reminder-card {
+    border-radius: 14px;
     padding: 20px 24px;
-    color: #8a5a16;
-    font-size: 15px;
-    line-height: 1.8;
+    margin: 0 0 22px;
+    border: 1px solid;
+    display: flex; align-items: center; gap: 16px;
 }
-.vv-dashboard-alert-title {
-    color: #8a4b05;
-    font-weight: 800;
-    margin-bottom: 6px;
+.vv-reminder-icon { font-size: 32px; flex-shrink: 0; }
+.vv-reminder-title {
+    font-size: 16px; font-weight: 800;
+    font-family: 'Plus Jakarta Sans','Cairo',sans-serif;
+    margin-bottom: 4px;
 }
+.vv-reminder-text { font-size: 13px; line-height: 1.6; opacity: 0.85; }
+.vv-reminder-countdown {
+    font-size: 28px; font-weight: 800;
+    font-family: 'Plus Jakarta Sans','Cairo',sans-serif;
+    line-height: 1;
+}
+
+/* ── Quick stats ── */
+.vv-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px; margin: 0 0 22px;
+}
+@media (max-width: 900px) { .vv-quick-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .vv-quick-stats { grid-template-columns: 1fr; } }
+
+/* ── Empty state ── */
 .vv-dashboard-empty {
-    background: #ffffff;
-    border: 1px solid #dfe7e5;
-    border-radius: 12px;
-    padding: 32px;
-    color: #4b5563;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(0,191,255,0.20);
+    border-radius: 14px; padding: 36px; color: #7A9BB5;
+    text-align: center;
 }
-@media (max-width: 900px) {
-    .vv-dashboard-metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media (max-width: 560px) {
-    .vv-dashboard-metrics {
-        grid-template-columns: 1fr;
-    }
-}
+
+@media (max-width: 900px) { .vv-dashboard-metrics { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .vv-dashboard-metrics { grid-template-columns: 1fr; } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -2381,65 +2140,6 @@ def render_dashboard_header():
 </div>
 """)
 
-def render_dashboard_metric_cards(df):
-    status_series = df["Status"].astype(str) if "Status" in df.columns else pd.Series(dtype=str)
-    total_reports = max(len(dashboard_reports()), 1)
-    deficiencies_found = int((status_series == "Deficient").sum())
-    normal_results = int((status_series == "Normal").sum())
-    model_agreement_value, model_agreement_class = model_agreement_dashboard_value(df)
-    reports = dashboard_reports()
-    if reports:
-        last_check = pd.Timestamp(reports[-1].get("created_at", pd.Timestamp.now()))
-        last_check_label = tr(
-            last_check.strftime("%b %d, %H:%M"),
-            last_check.strftime("%d/%m %H:%M"),
-        )
-    else:
-        last_check_label = tr("Current session", "الجلسة الحالية")
-
-    cards = [
-        {
-            "label": tr("Total Reports", "إجمالي التقارير"),
-            "value": total_reports,
-            "class": "soft-blue",
-        },
-        {
-            "label": tr("Deficiencies Found", "النواقص المكتشفة"),
-            "value": deficiencies_found,
-            "class": "soft-amber" if deficiencies_found else "soft-green",
-        },
-        {
-            "label": tr("Normal Results", "النتائج الطبيعية"),
-            "value": normal_results,
-            "class": "soft-green",
-        },
-        {
-            "label": tr("Model Agreement", "توافق الموديل"),
-            "value": model_agreement_value,
-            "class": model_agreement_class,
-        },
-        {
-            "label": tr("Last Check", "آخر تحليل"),
-            "value": last_check_label,
-            "class": "",
-        },
-    ]
-
-    cards_html = ""
-    for card in cards:
-        cards_html += f"""
-        <div class="vv-dashboard-card {card['class']}">
-            <div class="vv-dashboard-card-label">{safe_html(card['label'])}</div>
-            <div class="vv-dashboard-card-value">{safe_html(card['value'])}</div>
-        </div>
-        """
-
-    st.html(f"""
-<div class="vv-dashboard-metrics">
-    {cards_html}
-</div>
-""")
-
 def dashboard_status_class(status):
     status_value = str(status)
     return status_value.lower() if status_value in DASHBOARD_STATUS_ORDER else "unknown"
@@ -2450,411 +2150,46 @@ def dashboard_number(value):
         return safe_html(value)
     return f"{float(numeric_value):g}"
 
-def dashboard_range_text(row):
-    low = row.get("Low", None)
-    high = row.get("High", None)
-    unit = row.get("Unit", "")
-    if low is None or high is None or pd.isna(low) or pd.isna(high):
-        return tr("Reference range unavailable", "النطاق المرجعي غير متاح")
-    return tr(
-        f"Normal range: {dashboard_number(low)}-{dashboard_number(high)} {unit}",
-        f"النطاق الطبيعي: {dashboard_number(low)}-{dashboard_number(high)} {unit}",
-    )
 
-def render_dashboard_result_cards(df):
-    if df.empty:
-        return
 
-    align = "right" if is_arabic else "left"
-    dir_val = "rtl" if is_arabic else "ltr"
-    cards_html = ""
+def render_reminder_card():
+    reminder = load_reminder()
+    days_left, next_date = days_until_next_test()
 
-    for _, row in df.iterrows():
-        status = str(row.get("Status", "Unknown"))
-        status_class = dashboard_status_class(status)
-        nutrient = nutrient_display_name(str(row.get("Nutrient", "")))
-        value_text = dashboard_number(row.get("Value", ""))
-        unit = safe_html(row.get("Unit", ""))
-        value_with_unit = f"{safe_html(value_text)} {unit}".strip()
-        range_text = dashboard_range_text(row)
-        ml_prediction = str(row.get("ML Prediction", MODEL_UNAVAILABLE))
-        ml_confidence = str(row.get("ML Confidence", MODEL_UNAVAILABLE))
-        agreement = str(row.get("Model Agreement", MODEL_UNAVAILABLE))
-        ml_suffix = "" if ml_confidence == MODEL_UNAVAILABLE else f" ({ml_confidence})"
-        model_text = tr(
-            f"ML: {ml_prediction_text(ml_prediction)}{ml_suffix} | {model_agreement_text(agreement)}",
-            f"الموديل: {ml_prediction_text(ml_prediction)}{ml_suffix} | {model_agreement_text(agreement)}",
-        )
-
-        cards_html += f"""
-        <div class="vv-dashboard-result-card {status_class}" style="text-align:{align};">
-            <div>
-                <div class="vv-dashboard-status-pill">{safe_html(status_text(status))}</div>
-                <div class="vv-dashboard-result-name">{safe_html(nutrient)}</div>
-            </div>
-            <div>
-                <div class="vv-dashboard-result-value">{value_with_unit}</div>
-                <div class="vv-dashboard-result-range">{safe_html(range_text)}</div>
-                <div class="vv-dashboard-result-range">{safe_html(model_text)}</div>
-            </div>
-        </div>
-        """
-
-    section_title(tr("Latest Analysis Results", "نتائج آخر تحليل"), 22, "")
-    st.html(f"""
-<div style="direction:{dir_val};">
-    <div class="vv-dashboard-panel-subtitle" style="text-align:{align}; margin-bottom:10px;">
-        {safe_html(tr(
-            "Each card shows the submitted value, status, and reference range.",
-            "تعرض كل بطاقة القيمة المدخلة والحالة والنطاق الطبيعي."
-        ))}
-    </div>
-    <div class="vv-dashboard-results-grid">
-        {cards_html}
-    </div>
-</div>
-""")
-
-def render_dashboard_snapshot(df):
-    if df.empty or "Status" not in df.columns:
-        return
-
-    abnormal_df = df[df["Status"].isin(["Deficient", "Excessive"])].copy()
-    invalid_count = int(df["Status"].isin(["Invalid", "Unknown", "Error"]).sum())
-    total = len(df)
-    abnormal_count = len(abnormal_df)
-    abnormal_percent = round((abnormal_count / total) * 100, 1) if total else 0
-
-    if abnormal_count == 0:
-        color = status_color("Normal")
-        title = tr("Smart Snapshot", "الملخص الذكي")
-        text = tr(
-            "Your current valid results are within the normal range. Keep tracking future readings for a clearer trend.",
-            "النتائج الصالحة الحالية ضمن النطاق الطبيعي. استمر في متابعة القراءات القادمة للحصول على صورة أوضح."
-        )
-    else:
-        color = "#FFA500" if abnormal_percent < 50 else status_color("Deficient")
-        attention_names = []
-        if "Nutrient" in abnormal_df.columns:
-            attention_names = [
-                nutrient_display_name(nutrient)
-                for nutrient in abnormal_df["Nutrient"].dropna().astype(str).unique().tolist()[:4]
-            ]
-        attention_text = ", ".join(attention_names)
-        title = tr("Follow-up Suggested", "يوصى بالمتابعة")
-        text = tr(
-            f"{abnormal_count} result(s) need attention ({abnormal_percent:g}%): {attention_text}. Review these values with a healthcare professional if they persist.",
-            f"{abnormal_count} نتيجة تحتاج متابعة ({abnormal_percent:g}%): {attention_text}. راجع هذه القيم مع مختص صحي إذا استمرت."
-        )
-
-    if invalid_count:
-        text += tr(
-            f" {invalid_count} input(s) could not be classified and may need correction.",
-            f" توجد {invalid_count} مدخلات لم يتم تصنيفها وقد تحتاج إلى تصحيح."
-        )
-
-    if "Model Agreement" in df.columns:
-        agreement_series = df["Model Agreement"].astype(str)
-        available = agreement_series[agreement_series.isin(["Agree", "Different"])]
-        if not available.empty:
-            agree_count = int((available == "Agree").sum())
-            text += tr(
-                f" The ML model agreed with the reference-range status for {agree_count}/{len(available)} model-checked result(s).",
-                f" توافق الموديل مع حالة النطاقات في {agree_count}/{len(available)} نتيجة تم فحصها بالموديل."
+    if reminder and days_left is not None:
+        interval = reminder.get("interval_months", 3)
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            new_interval = st.selectbox(
+                tr("Repeat interval", "فترة التكرار"),
+                options=[3, 6, 12],
+                index=[3, 6, 12].index(interval) if interval in [3, 6, 12] else 0,
+                format_func=lambda m: tr(f"Every {m} months", f"كل {m} أشهر"),
+                key="reminder_interval_select",
             )
-
-    dir_val = "rtl" if is_arabic else "ltr"
-    align = "right" if is_arabic else "left"
-
-    st.html(f"""
-<div class="vv-dashboard-alert" style="direction:{dir_val}; text-align:{align}; border-color:{color}55;">
-    <div class="vv-dashboard-alert-title">{safe_html(title)}</div>
-    <div>
-        {safe_html(text)}
-    </div>
-</div>
-""")
-
-def dashboard_chart_rows(df):
-    chart_rows = []
-    required_cols = {"Nutrient", "Value", "Low", "High", "Status", "Unit"}
-    if df.empty or not required_cols.issubset(df.columns):
-        return pd.DataFrame()
-
-    for _, row in df.iterrows():
-        value = pd.to_numeric(row.get("Value"), errors="coerce")
-        low = pd.to_numeric(row.get("Low"), errors="coerce")
-        high = pd.to_numeric(row.get("High"), errors="coerce")
-        if pd.isna(value) or pd.isna(low) or pd.isna(high) or high <= low:
-            continue
-
-        position = ((float(value) - float(low)) / (float(high) - float(low))) * 100
-        display_position = min(max(position, -35), 135)
-        status = str(row.get("Status", "Unknown"))
-        chart_rows.append({
-            "Nutrient": nutrient_display_name(str(row.get("Nutrient", ""))),
-            "Value": float(value),
-            "Unit": str(row.get("Unit", "")),
-            "Low": float(low),
-            "High": float(high),
-            "Status": status,
-            "Status Text": status_text(status),
-            "Position": display_position,
-            "Actual Position": position,
-            "Color": {
-                "Normal": "#1DB954",
-                "Deficient": "#FF4B4B",
-                "Excessive": "#FFA500",
-            }.get(status, "#6b7280"),
-        })
-
-    return pd.DataFrame(chart_rows)
-
-def render_dashboard_range_chart(df):
-    chart_df = dashboard_chart_rows(df)
-    if chart_df.empty:
-        st.info(tr(
-            "The range chart will appear after numeric results with reference ranges are available.",
-            "سيظهر مخطط النطاق بعد توفر نتائج رقمية مع نطاقات مرجعية."
-        ))
-        return
-
-    align = "right" if is_arabic else "left"
-    section_title(tr("Results vs Normal Range", "النتائج مقارنة بالنطاق الطبيعي"), 22, "")
-    st.html(f"""
-<div class="vv-dashboard-panel-subtitle" style="text-align:{align}; margin-bottom:8px;">
-    {safe_html(tr(
-        "The green band marks the normal range. Values left of it are low; values right of it are high.",
-        "يوضح الشريط الأخضر النطاق الطبيعي. القيم على اليسار منخفضة، والقيم على اليمين مرتفعة."
-    ))}
-</div>
-""")
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=chart_df["Position"],
-        y=chart_df["Nutrient"],
-        orientation="h",
-        marker_color=chart_df["Color"],
-        text=[
-            f"{value:g} {unit} | {status}"
-            for value, unit, status in zip(chart_df["Value"], chart_df["Unit"], chart_df["Status Text"])
-        ],
-        textposition="auto",
-        customdata=[
-            [f"{row['Value']:g} {row['Unit']}", f"{row['Low']:g}-{row['High']:g} {row['Unit']}", f"{row['Actual Position']:.1f}%"]
-            for _, row in chart_df.iterrows()
-        ],
-        hovertemplate="<b>%{y}</b><br>%{customdata[0]}<br>%{customdata[1]}<br>%{customdata[2]}<extra></extra>",
-    ))
-    fig.add_vrect(x0=0, x1=100, fillcolor="rgba(29,185,84,0.08)", line_width=0, layer="below")
-    fig.add_vline(x=0, line_color="#1DB954", line_dash="dot", line_width=1)
-    fig.add_vline(x=100, line_color="#1DB954", line_dash="dot", line_width=1)
-    fig.update_layout(
-        height=max(340, 42 * len(chart_df) + 120),
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
-        font=dict(color="#4B5563", family="Plus Jakarta Sans, Cairo"),
-        margin=dict(l=24, r=24, t=18, b=42),
-        xaxis=dict(
-            range=[-40, 140],
-            title=tr("Position inside normal range (%)", "الموضع داخل النطاق الطبيعي (%)"),
-            gridcolor="#e8ecef",
-            zeroline=False,
-        ),
-        yaxis=dict(autorange="reversed"),
-        showlegend=False,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-def dashboard_recommendation_items(row):
-    recommendations = str(row.get("Recommendations", "")).strip()
-    if recommendations:
-        return [item.strip() for item in recommendations.split(";") if item.strip()]
-    return get_recommendations(str(row.get("Status", "Unknown")))
-
-def render_dashboard_recommendations(df):
-    if df.empty or "Status" not in df.columns:
-        return
-
-    focus_statuses = ["Deficient", "Excessive", "Invalid", "Unknown", "Error"]
-    focus_df = df[df["Status"].astype(str).isin(focus_statuses)].copy()
-    normal_count = int((df["Status"].astype(str) == "Normal").sum())
-    align = "right" if is_arabic else "left"
-    dir_val = "rtl" if is_arabic else "ltr"
-    items_html = ""
-
-    if focus_df.empty:
-        items_html = f"""
-        <div class="vv-dashboard-recommendation-item">
-            <div class="vv-dashboard-recommendation-title">{safe_html(tr("All Current Results Are Normal", "كل النتائج الحالية طبيعية"))}</div>
-            <div class="vv-dashboard-recommendation-text">
-                {safe_html(tr(
-                    "Maintain healthy habits and keep tracking future lab results for a clearer long-term pattern.",
-                    "حافظ على العادات الصحية واستمر في متابعة التحاليل القادمة للحصول على صورة أوضح على المدى الطويل."
-                ))}
-            </div>
-        </div>
-        """
+        with col2:
+            if st.button(tr("Reschedule", "إعادة جدولة"), use_container_width=True, key="reminder_reschedule"):
+                new_date = date.today() + timedelta(days=new_interval * 30)
+                save_reminder(new_date, new_interval)
+                st.rerun()
+        with col3:
+            if st.button(tr("Delete", "حذف"), use_container_width=True, key="reminder_delete"):
+                delete_reminder()
+                st.rerun()
     else:
-        for _, row in focus_df.iterrows():
-            nutrient = nutrient_display_name(str(row.get("Nutrient", "")))
-            status = str(row.get("Status", "Unknown"))
-            rec_text = " ".join(dashboard_recommendation_items(row))
-            items_html += f"""
-            <div class="vv-dashboard-recommendation-item">
-                <div class="vv-dashboard-recommendation-title">{safe_html(nutrient)} - {safe_html(status_text(status))}</div>
-                <div class="vv-dashboard-recommendation-text">{safe_html(rec_text)}</div>
-            </div>
-            """
-
-        if normal_count:
-            items_html += f"""
-            <div class="vv-dashboard-recommendation-item">
-                <div class="vv-dashboard-recommendation-title">{safe_html(tr("Normal Results", "النتائج الطبيعية"))}</div>
-                <div class="vv-dashboard-recommendation-text">
-                    {safe_html(tr(
-                        f"{normal_count} result(s) are within the normal range.",
-                        f"{normal_count} نتيجة ضمن النطاق الطبيعي."
-                    ))}
-                </div>
-            </div>
-            """
-
-    section_title(tr("Recommendations", "التوصيات"), 22, "")
-    st.html(f"""
-<div class="vv-dashboard-recommendations" style="direction:{dir_val}; text-align:{align};">
-    {items_html}
-    <div class="vv-dashboard-disclaimer">
-        {safe_html(tr(
-            "These are general recommendations and do not replace medical advice from a qualified healthcare professional.",
-            "هذه توصيات عامة ولا تغني عن استشارة مختص صحي مؤهل."
-        ))}
-    </div>
-</div>
-""")
-
-def render_dashboard_charts(df):
-    render_dashboard_range_chart(df)
-
-def render_dashboard_filters_table(df, key_prefix="dashboard"):
-    status_options = dashboard_status_options(df)
-    nutrient_options = dashboard_nutrient_options(df)
-
-    if not status_options or not nutrient_options:
-        st.info(tr(
-            "Filters will appear after results include both status and nutrient data.",
-            "ستظهر الفلاتر بعد توفر بيانات الحالة والعنصر في النتائج."
-        ))
-        return
-
-    filter_col1, filter_col2 = st.columns(2)
-    with filter_col1:
-        selected_status = st.multiselect(
-            tr("Filter by Status", "فلترة حسب الحالة"),
-            options=status_options,
-            default=status_options,
-            format_func=status_text,
-            key=f"{key_prefix}_status_filter",
-        )
-    with filter_col2:
-        selected_nutrients = st.multiselect(
-            tr("Filter by Nutrient", "فلترة حسب العنصر"),
-            options=nutrient_options,
-            default=nutrient_options,
-            format_func=nutrient_display_name,
-            key=f"{key_prefix}_nutrient_filter",
-        )
-
-    if selected_status and selected_nutrients:
-        filtered_df = df[
-            (df["Status"].astype(str).isin(selected_status)) &
-            (df["Nutrient"].astype(str).isin(selected_nutrients))
-        ].copy()
-    else:
-        filtered_df = df.iloc[0:0].copy()
-
-    section_title(tr("Filtered Results", "النتائج بعد الفلترة"), 22, "")
-    if filtered_df.empty:
-        st.info(tr(
-            "No results match the selected filters.",
-            "لا توجد نتائج تطابق الفلاتر المحددة."
-        ))
-    else:
-        render_results_table(filtered_df)
-
-def report_option_label(report):
-    counts = report.get("summary", {})
-    return tr(
-        f"{report_display_date(report)} | {report.get('source', 'Report')} | {counts.get('total', 0)} item(s) | {report_overall_status_text(report.get('overall_status', ''))}",
-        f"{report_display_date(report)} | {report.get('source', 'تقرير')} | {counts.get('total', 0)} عنصر | {report_overall_status_text(report.get('overall_status', ''))}",
-    )
-
-def selected_report_from_history(reports):
-    report_ids = [report["report_id"] for report in reports]
-    if st.session_state.get("selected_report_id") not in report_ids:
-        st.session_state["selected_report_id"] = reports[-1]["report_id"]
-
-    newest_first = list(reversed(reports))
-    selected_id = st.selectbox(
-        tr("Select report", "اختر التقرير"),
-        options=[report["report_id"] for report in newest_first],
-        index=[report["report_id"] for report in newest_first].index(st.session_state["selected_report_id"]),
-        format_func=lambda report_id: report_option_label(
-            next(report for report in reports if report["report_id"] == report_id)
-        ),
-        key="selected_report_id",
-    )
-    return next(report for report in reports if report["report_id"] == selected_id)
-
-def render_latest_report_summary(report, reports):
-    counts = report.get("summary", {})
-    follow_up = counts.get("deficient", 0) + counts.get("excessive", 0) + counts.get("invalid", 0)
-    tracked_nutrients = len(nutrient_names_from_reports(reports))
-    latest_df = report_to_df(report)
-    model_agreement_value, model_agreement_class = model_agreement_dashboard_value(latest_df)
-    cards = [
-        {
-            "label": tr("Total Reports", "إجمالي التقارير"),
-            "value": len(reports),
-            "class": "soft-blue",
-        },
-        {
-            "label": tr("Latest Report", "آخر تقرير"),
-            "value": report_display_date(report),
-            "class": "",
-        },
-        {
-            "label": tr("Tracked Nutrients", "العناصر المتابعة"),
-            "value": tracked_nutrients,
-            "class": "soft-green",
-        },
-        {
-            "label": tr("Model Agreement", "توافق الموديل"),
-            "value": model_agreement_value,
-            "class": model_agreement_class,
-        },
-        {
-            "label": tr("Needs Follow-up", "تحتاج متابعة"),
-            "value": follow_up,
-            "class": "soft-amber" if follow_up else "soft-green",
-        },
-    ]
-
-    cards_html = ""
-    for card in cards:
-        cards_html += f"""
-        <div class="vv-dashboard-card {card['class']}">
-            <div class="vv-dashboard-card-label">{safe_html(card['label'])}</div>
-            <div class="vv-dashboard-card-value" style="font-size:24px;">{safe_html(card['value'])}</div>
-        </div>
-        """
-
-    st.html(f"""
-<div class="vv-dashboard-metrics">
-    {cards_html}
-</div>
-""")
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            interval = st.selectbox(
+                tr("Test interval", "فترة التحليل"),
+                options=[3, 6, 12],
+                format_func=lambda m: tr(f"Every {m} months", f"كل {m} أشهر"),
+                key="reminder_new_interval",
+            )
+        with col2:
+            if st.button(tr("Set Reminder", "تعيين التذكير"), use_container_width=True, type="primary", key="reminder_set"):
+                new_date = date.today() + timedelta(days=interval * 30)
+                save_reminder(new_date, interval)
+                st.rerun()
 
 def render_report_history_table(reports):
     rows = []
@@ -2866,11 +2201,9 @@ def render_report_history_table(reports):
             tr("Items", "العناصر"): counts.get("total", 0),
             tr("Deficient", "ناقص"): counts.get("deficient", 0),
             tr("Excessive", "مرتفع"): counts.get("excessive", 0),
-            tr("Invalid", "غير صالح"): counts.get("invalid", 0),
             tr("Status", "الحالة"): report_overall_status_text(report.get("overall_status", "")),
         })
 
-    section_title(tr("Report History", "سجل التقارير"), 22, "")
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def render_report_actions(report, report_df, key_prefix="report"):
@@ -2995,81 +2328,12 @@ def sparkline_svg(valid_readings, color):
 
     return f"""
     <svg class="vv-sparkline" viewBox="0 0 {width} {height}" preserveAspectRatio="none" role="img">
-        <line x1="8" y1="{height - 8}" x2="{width - 8}" y2="{height - 8}" stroke="#e5e7eb" stroke-width="1" />
+        <line x1="8" y1="{height - 8}" x2="{width - 8}" y2="{height - 8}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
         <polyline fill="none" stroke="{color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="{' '.join(points)}" />
         {''.join(circles)}
     </svg>
     """
 
-def render_vitamin_tracking_cards(reports):
-    nutrient_names = nutrient_names_from_reports(reports)
-    if not nutrient_names:
-        st.info(tr(
-            "Add a report to start tracking nutrients over time.",
-            "أضف تقريرًا للبدء في متابعة العناصر عبر الزمن."
-        ))
-        return None
-
-    section_title(tr("Vitamin Tracking", "متابعة الفيتامينات والمعادن"), 22, "")
-
-    selected = st.selectbox(
-        tr("Choose nutrient for timeline", "اختر العنصر لعرض الخط الزمني"),
-        options=nutrient_names,
-        index=0,
-        format_func=nutrient_display_name,
-        key="tracking_selected_nutrient",
-    )
-
-    align = "right" if is_arabic else "left"
-    dir_val = "rtl" if is_arabic else "ltr"
-    cards_html = ""
-
-    for nutrient in nutrient_names:
-        readings = nutrient_readings_from_reports(reports, nutrient)
-        latest = latest_nutrient_reading(readings)
-        valid_readings = valid_nutrient_readings(readings)
-        status = latest.get("status", "Unknown") if latest else "Unknown"
-        status_class = dashboard_status_class(status)
-        status_label = status_text(status)
-        color = status_color(status)
-        value = latest.get("value") if latest else None
-        raw_value = latest.get("raw_value") if latest else ""
-        unit = latest.get("unit", "") if latest else ""
-        value_label = f"{dashboard_number(value if value is not None else raw_value)} {safe_html(unit)}".strip()
-        invalid_count = len([reading for reading in readings if not reading.get("valid")])
-        invalid_note = ""
-        if invalid_count:
-            invalid_note = f"""
-            <div class="vv-tracking-warning">
-                {safe_html(tr(
-                    f"{invalid_count} invalid reading(s) excluded from trend.",
-                    f"تم استبعاد {invalid_count} قراءة غير صالحة من التتبع."
-                ))}
-            </div>
-            """
-
-        cards_html += f"""
-        <div class="vv-tracking-card {status_class}" style="text-align:{align};">
-            <div>
-                <div class="vv-dashboard-status-pill">{safe_html(status_label)}</div>
-                <div class="vv-tracking-name">{safe_html(nutrient_display_name(nutrient))}</div>
-                <div class="vv-tracking-value">{value_label}</div>
-                <div class="vv-tracking-meta">{safe_html(nutrient_range_label(latest))}</div>
-                <div class="vv-tracking-delta">{safe_html(nutrient_delta_text(valid_readings))}</div>
-                {invalid_note}
-            </div>
-            {sparkline_svg(valid_readings, color)}
-        </div>
-        """
-
-    st.html(f"""
-<div style="direction:{dir_val};">
-    <div class="vv-tracking-grid">
-        {cards_html}
-    </div>
-</div>
-""")
-    return selected
 
 def render_selected_nutrient_timeline(reports, nutrient):
     if not nutrient:
@@ -3094,24 +2358,25 @@ def render_selected_nutrient_timeline(reports, nutrient):
             f"تم استبعاد {invalid_count} قراءة غير صالحة من هذا الخط الزمني."
         ))
 
-    if len(valid_readings) < 2:
+    if not valid_readings:
         st.info(tr(
-            "This nutrient needs at least two valid readings to show a timeline.",
-            "هذا العنصر يحتاج قراءتين صالحتين على الأقل لعرض الخط الزمني."
+            "No valid readings to display.",
+            "لا توجد قراءات صالحة للعرض."
         ))
         return
 
     trend_df = pd.DataFrame(valid_readings)
     marker_colors = [status_color(status) for status in trend_df["status"]]
+    draw_mode = "lines+markers+text" if len(valid_readings) >= 2 else "markers+text"
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=trend_df["date"],
         y=trend_df["value"],
-        mode="lines+markers+text",
+        mode=draw_mode,
         text=[f"{value:g}" for value in trend_df["value"]],
         textposition="top center",
         line=dict(color="#00BFFF", width=3),
-        marker=dict(size=12, color=marker_colors, line=dict(color="#ffffff", width=2)),
+        marker=dict(size=14 if len(valid_readings) == 1 else 12, color=marker_colors, line=dict(color="#ffffff", width=2)),
         customdata=[
             [status_text(row["status"]), f"{row['value']:g} {row.get('unit', '')}"]
             for _, row in trend_df.iterrows()
@@ -3128,151 +2393,315 @@ def render_selected_nutrient_timeline(reports, nutrient):
         fig.add_hline(y=low, line_color="#1DB954", line_dash="dot")
         fig.add_hline(y=high, line_color="#1DB954", line_dash="dot")
 
+    grid_color = "rgba(0,0,0,0.06)" if is_light_theme else "rgba(255,255,255,0.06)"
+    axis_color = "#5a6a7a" if is_light_theme else "#7A9BB5"
+    font_color = "#5a6a7a" if is_light_theme else "#9AAAB8"
     fig.update_layout(
         height=400,
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
-        font=dict(color="#4B5563", family="Plus Jakarta Sans, Cairo"),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=font_color, family="Plus Jakarta Sans, Cairo"),
         margin=dict(l=24, r=24, t=24, b=48),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(gridcolor="#e8ecef", title=trend_df["unit"].iloc[-1]),
+        xaxis=dict(showgrid=False, color=axis_color),
+        yaxis=dict(gridcolor=grid_color, title=trend_df["unit"].iloc[-1], color=axis_color),
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-def render_report_trends(reports, selected_report):
-    nutrient_names = sorted({
-        str(result.get("Nutrient", ""))
-        for report in reports
-        for result in report.get("results", [])
-        if result.get("Nutrient")
-    }, key=nutrient_display_name)
+def build_dashboard_html(reports):
+    latest = reports[-1]
+    counts = latest.get("summary", {})
+    normal_count = counts.get("normal", 0)
+    deficient_count = counts.get("deficient", 0)
+    excessive_count = counts.get("excessive", 0)
+    follow_up = deficient_count + excessive_count + counts.get("invalid", 0)
+    total = counts.get("total", 0)
+    days_since = dashboard_days_since_last()
+    last_date = report_display_date(latest)
+    dir_val = "rtl" if is_arabic else "ltr"
+    align = "right" if is_arabic else "left"
+    light = is_light_theme
+    t_sub = "#5a6a7a" if light else "#B8C8D8"
 
-    if not nutrient_names:
-        return
+    # Banner
+    if follow_up == 0 and total > 0:
+        b_color, b_bg, b_icon = "#1DB954", "rgba(29,185,84,0.12)", "✅"
+        b_title = tr("All Results Normal", "جميع النتائج طبيعية")
+        b_text = tr(f"All {total} nutrient(s) within healthy range.", f"جميع الـ {total} عناصر ضمن النطاق الطبيعي.")
+    elif follow_up > 0:
+        b_color = "#FFA500" if follow_up < total else "#FF4B4B"
+        b_bg = "rgba(255,165,0,0.12)" if follow_up < total else "rgba(255,75,75,0.12)"
+        b_icon = "⚠️"
+        b_title = tr("Needs Attention", "يحتاج متابعة")
+        b_text = tr(f"{follow_up}/{total} result(s) need attention.", f"{follow_up} من {total} تحتاج متابعة.")
+    else:
+        b_color, b_bg, b_icon = "#7A9BB5", "rgba(255,255,255,0.04)", "📊"
+        b_title = tr("No Data", "لا بيانات")
+        b_text = ""
 
-    selected_df = report_to_df(selected_report)
-    preferred = None
-    if "Nutrient" in selected_df.columns and not selected_df.empty:
-        preferred = str(selected_df.iloc[0].get("Nutrient", ""))
-    if preferred not in nutrient_names:
-        preferred = nutrient_names[0]
+    # Reminder
+    days_left, next_date = days_until_next_test()
+    if days_left is not None:
+        if days_left > 30:
+            r_color, r_bg, r_icon = "#1DB954", "rgba(29,185,84,0.10)", "🟢"
+        elif days_left > 7:
+            r_color, r_bg, r_icon = "#FFA500", "rgba(255,165,0,0.10)", "🟡"
+        elif days_left > 0:
+            r_color, r_bg, r_icon = "#FF4B4B", "rgba(255,75,75,0.10)", "🔴"
+        else:
+            r_color, r_bg, r_icon = "#FF4B4B", "rgba(255,75,75,0.15)", "⏰"
 
-    section_title(tr("Trends", "تطور التحاليل"), 22, "")
-    selected_nutrient = st.selectbox(
-        tr("Track nutrient over reports", "تابع العنصر عبر التقارير"),
-        options=nutrient_names,
-        index=nutrient_names.index(preferred),
-        format_func=nutrient_display_name,
-        key="report_trend_nutrient",
-    )
+        if days_left > 0:
+            r_main = tr(f"{days_left} days remaining", f"{days_left} يوم متبقي")
+            r_sub = tr(f"Next: {next_date.strftime('%b %d, %Y')}", f"القادم: {next_date.strftime('%Y/%m/%d')}")
+        elif days_left == 0:
+            r_main = tr("Today!", "اليوم!")
+            r_sub = tr("Your test is today.", "تحليلك اليوم.")
+        else:
+            r_main = tr(f"{abs(days_left)} days overdue", f"متأخر {abs(days_left)} يوم")
+            r_sub = tr(f"Was due: {next_date.strftime('%b %d, %Y')}", f"كان: {next_date.strftime('%Y/%m/%d')}")
+        reminder_html = f"""
+        <div class="db-reminder" style="background:{r_bg}; border-color:{r_color}40;">
+            <div class="db-reminder-icon">{r_icon}</div>
+            <div class="db-reminder-content">
+                <div class="db-reminder-countdown" style="color:{r_color};">{safe_html(r_main)}</div>
+                <div class="db-reminder-sub">{safe_html(r_sub)}</div>
+            </div>
+        </div>
+        """
+    else:
+        no_rem_color = "#0070CC" if light else "#00BFFF"
+        reminder_html = f"""
+        <div class="db-reminder" style="background:rgba(0,140,255,0.06); border-color:rgba(0,140,255,0.25);">
+            <div class="db-reminder-icon">📅</div>
+            <div class="db-reminder-content">
+                <div class="db-reminder-countdown" style="color:{no_rem_color};">{safe_html(tr("No Reminder Set", "لا يوجد تذكير"))}</div>
+                <div class="db-reminder-sub">{safe_html(tr("Set one below to track your next test.", "حدد تذكير أدناه لمتابعة تحليلك القادم."))}</div>
+            </div>
+        </div>
+        """
 
-    points = []
-    skipped_invalid = 0
-    for report in reports:
-        for result in report.get("results", []):
-            if str(result.get("Nutrient", "")) != selected_nutrient:
-                continue
-            status = str(result.get("Status", "Unknown"))
-            value = pd.to_numeric(result.get("Value"), errors="coerce")
-            if status in ["Invalid", "Unknown", "Error"] or pd.isna(value):
-                skipped_invalid += 1
-                continue
-            points.append({
-                "Date": report_display_date(report),
-                "Value": float(value),
-                "Status": status_text(status),
-                "Unit": result.get("Unit", ""),
-                "Low": pd.to_numeric(result.get("Low"), errors="coerce"),
-                "High": pd.to_numeric(result.get("High"), errors="coerce"),
-            })
+    # Nutrient cards data
+    nutrient_names = nutrient_names_from_reports(reports)
+    tracking_cards = ""
+    for nutrient in nutrient_names:
+        readings = nutrient_readings_from_reports(reports, nutrient)
+        latest_r = latest_nutrient_reading(readings)
+        valid_r = valid_nutrient_readings(readings)
+        status = latest_r.get("status", "Unknown") if latest_r else "Unknown"
+        color = status_color(status)
+        value = latest_r.get("value") if latest_r else None
+        raw_value = latest_r.get("raw_value", "") if latest_r else ""
+        unit = latest_r.get("unit", "") if latest_r else ""
+        val_display = f"{dashboard_number(value if value is not None else raw_value)} {safe_html(unit)}".strip()
+        delta = nutrient_delta_text(valid_r)
+        range_label = nutrient_range_label(latest_r)
+        spark = sparkline_svg(valid_r, color)
 
-    if skipped_invalid:
-        st.warning(tr(
-            f"{skipped_invalid} invalid reading(s) were excluded from the trend chart.",
-            f"تم استبعاد {skipped_invalid} قراءة غير صالحة من مخطط التطور."
-        ))
+        status_label = status_text(status)
+        tracking_cards += f"""
+        <div class="db-track-card" style="border-left-color:{color};">
+            <div class="db-track-pill" style="background:{color}20; color:{color};">{safe_html(status_label)}</div>
+            <div class="db-track-name">{safe_html(nutrient_display_name(nutrient))}</div>
+            <div class="db-track-value" style="color:{color};">{val_display}</div>
+            <div class="db-track-range">{safe_html(range_label)}</div>
+            <div class="db-track-delta">{safe_html(delta)}</div>
+            {spark}
+        </div>
+        """
 
-    if len(points) < 2:
-        st.info(tr(
-            "Add at least two valid reports for this nutrient to see a trend.",
-            "أضف تقريرين صالحين على الأقل لهذا العنصر لعرض التطور."
-        ))
-        return
+    # Stats cards (3 cards)
+    stats_html = f"""
+    <div class="db-stats">
+        <div class="db-stat-card">
+            <div class="db-stat-icon">📅</div>
+            <div class="db-stat-value">{safe_html(last_date)}</div>
+            <div class="db-stat-label">{safe_html(tr("Last Test", "آخر تحليل"))}</div>
+        </div>
+        <div class="db-stat-card">
+            <div class="db-stat-icon">🧪</div>
+            <div class="db-stat-value">{total}</div>
+            <div class="db-stat-label">{safe_html(tr("Nutrients", "عناصر"))}</div>
+        </div>
+        <div class="db-stat-card" style="{'border-color:#FF4B4B40;' if follow_up else ''}">
+            <div class="db-stat-icon">{'⚠️' if follow_up else '✅'}</div>
+            <div class="db-stat-value" style="color:{'#FF4B4B' if follow_up else '#1DB954'};">{follow_up}</div>
+            <div class="db-stat-label">{safe_html(tr("Need Attention", "تحتاج متابعة"))}</div>
+        </div>
+    </div>
+    """
 
-    trend_df = pd.DataFrame(points)
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=trend_df["Date"],
-        y=trend_df["Value"],
-        mode="lines+markers+text",
-        text=[f"{value:g}" for value in trend_df["Value"]],
-        textposition="top center",
-        line=dict(color="#00BFFF", width=3),
-        marker=dict(size=10, color="#1DB954", line=dict(color="#ffffff", width=2)),
-        hovertemplate="%{x}<br>%{y:g}<extra></extra>",
-    ))
+    return f"""
+<div class="db-root" style="direction:{dir_val}; text-align:{align};">
 
-    low_values = trend_df["Low"].dropna()
-    high_values = trend_df["High"].dropna()
-    if not low_values.empty and not high_values.empty:
-        low = float(low_values.iloc[-1])
-        high = float(high_values.iloc[-1])
-        fig.add_hrect(y0=low, y1=high, fillcolor="rgba(29,185,84,0.10)", line_width=0, layer="below")
-        fig.add_hline(y=low, line_color="#1DB954", line_dash="dot")
-        fig.add_hline(y=high, line_color="#1DB954", line_dash="dot")
+    <!-- Health Banner -->
+    <div class="db-banner" style="background:{b_bg}; border-color:{b_color}40;">
+        <span class="db-banner-icon">{b_icon}</span>
+        <div class="db-banner-body">
+            <div class="db-banner-title" style="color:{b_color};">{safe_html(b_title)}</div>
+            <div class="db-banner-text">{safe_html(b_text)}</div>
+        </div>
+    </div>
 
-    fig.update_layout(
-        height=360,
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
-        font=dict(color="#4B5563", family="Plus Jakarta Sans, Cairo"),
-        margin=dict(l=24, r=24, t=24, b=44),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(gridcolor="#e8ecef", title=trend_df["Unit"].iloc[-1]),
-        showlegend=False,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    <!-- Quick Stats -->
+    {stats_html}
+
+    <!-- Reminder -->
+    {reminder_html}
+
+    <!-- Tracking Section Title -->
+    <div class="db-section-title">{safe_html(tr("Vitamin Tracking", "متابعة الفيتامينات"))}</div>
+
+    <!-- Tracking Cards -->
+    <div class="db-track-grid">
+        {tracking_cards if tracking_cards else f'<div class="db-empty">{safe_html(tr("No nutrients to track yet.", "لا عناصر للمتابعة بعد."))}</div>'}
+    </div>
+
+</div>
+"""
+
+def get_dashboard_css():
+    light = is_light_theme
+    text_main = "#1a2332" if light else "#F0F4F8"
+    text_muted = "#5a6a7a" if light else "#7A9BB5"
+    text_sub = "#6b7b8b" if light else "#9AAAB8"
+    card_bg = "rgba(0,0,0,0.03)" if light else "rgba(255,255,255,0.03)"
+    card_border = "rgba(0,0,0,0.08)" if light else "rgba(255,255,255,0.08)"
+    card_hover_shadow = "0 8px 24px rgba(0,0,0,0.08)" if light else "0 8px 24px rgba(0,0,0,0.2)"
+    section_border = "rgba(0,0,0,0.08)" if light else "rgba(255,255,255,0.06)"
+    sparkline_bg = "rgba(0,0,0,0.03)" if light else "rgba(255,255,255,0.03)"
+    delta_bg = "rgba(0,140,255,0.08)" if light else "rgba(0,191,255,0.08)"
+    delta_color = "#0070CC" if light else "#00BFFF"
+
+    return f"""
+<style>
+.db-root {{
+    font-family: 'Plus Jakarta Sans', 'Cairo', -apple-system, sans-serif;
+    padding: 0; margin: 0;
+}}
+
+/* Banner */
+.db-banner {{
+    border-radius: 16px; padding: 20px 24px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px;
+    border: 1px solid; backdrop-filter: blur(8px);
+}}
+.db-banner-icon {{ font-size: 34px; flex-shrink: 0; }}
+.db-banner-title {{ font-size: 18px; font-weight: 800; margin-bottom: 4px; }}
+.db-banner-text {{ font-size: 13px; color: {text_sub}; line-height: 1.5; }}
+
+/* Stats Grid */
+.db-stats {{
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 20px;
+}}
+.db-stat-card {{
+    background: {card_bg}; border: 1px solid {card_border};
+    border-radius: 14px; padding: 18px 16px; text-align: center;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}}
+.db-stat-card:hover {{ transform: translateY(-2px); border-color: rgba(0,140,255,0.3); box-shadow: {card_hover_shadow}; }}
+.db-stat-icon {{ font-size: 24px; margin-bottom: 8px; }}
+.db-stat-value {{
+    font-size: 20px; font-weight: 800; color: {text_main};
+    line-height: 1.2; margin-bottom: 4px;
+    word-break: break-word;
+}}
+.db-stat-label {{ font-size: 11px; color: {text_muted}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }}
+
+/* Reminder */
+.db-reminder {{
+    border-radius: 14px; padding: 20px 24px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px;
+    border: 1px solid; transition: transform 0.2s;
+}}
+.db-reminder:hover {{ transform: translateY(-1px); }}
+.db-reminder-icon {{ font-size: 32px; flex-shrink: 0; }}
+.db-reminder-content {{ flex: 1; }}
+.db-reminder-countdown {{ font-size: 26px; font-weight: 800; line-height: 1.2; }}
+.db-reminder-sub {{ font-size: 13px; color: {text_sub}; margin-top: 4px; }}
+
+/* Section Title */
+.db-section-title {{
+    font-size: 20px; font-weight: 800; color: {text_main};
+    margin: 24px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid {section_border};
+}}
+
+/* Tracking Grid */
+.db-track-grid {{
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px; margin-bottom: 20px;
+}}
+.db-track-card {{
+    background: {card_bg}; border: 1px solid {card_border};
+    border-left: 5px solid #6b7280; border-radius: 14px;
+    padding: 18px 20px; transition: transform 0.2s, box-shadow 0.2s;
+}}
+.db-track-card:hover {{ transform: translateY(-2px); box-shadow: {card_hover_shadow}; }}
+.db-track-pill {{
+    display: inline-block; border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 800; margin-bottom: 8px;
+}}
+.db-track-name {{ font-size: 16px; font-weight: 800; color: {text_main}; margin-bottom: 4px; }}
+.db-track-value {{ font-size: 28px; font-weight: 800; line-height: 1.1; margin: 6px 0; }}
+.db-track-range {{ font-size: 12px; color: {text_muted}; margin-bottom: 4px; }}
+.db-track-delta {{
+    display: inline-block; background: {delta_bg}; color: {delta_color};
+    border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; margin-top: 6px;
+}}
+
+/* Sparkline */
+.vv-sparkline {{ width: 100%; height: 48px; margin-top: 12px; }}
+.vv-sparkline-empty {{
+    height: 48px; margin-top: 12px; border-radius: 8px;
+    background: {sparkline_bg}; color: {text_muted};
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+}}
+
+/* Empty state */
+.db-empty {{
+    grid-column: 1 / -1; text-align: center; padding: 32px;
+    color: {text_muted}; font-size: 14px;
+    border: 1px dashed rgba(0,140,255,0.2); border-radius: 14px;
+}}
+
+/* Responsive */
+@media (max-width: 900px) {{ .db-stats {{ grid-template-columns: repeat(2, 1fr); }} }}
+@media (max-width: 560px) {{
+    .db-stats {{ grid-template-columns: 1fr; }}
+    .db-track-grid {{ grid-template-columns: 1fr; }}
+}}
+</style>
+"""
 
 def render_report_dashboard(reports):
     latest = reports[-1]
     latest_df = report_to_df(latest)
 
-    render_latest_report_summary(latest, reports)
-    selected_nutrient = render_vitamin_tracking_cards(reports)
-    render_selected_nutrient_timeline(reports, selected_nutrient)
+    # Render full custom HTML dashboard
+    st.html(get_dashboard_css() + build_dashboard_html(reports))
 
-    section_title(tr("Latest Report Details", "تفاصيل آخر تقرير"), 22, "")
-    st.caption(report_option_label(latest))
-    render_report_actions(latest, latest_df, key_prefix="latest")
+    # Interactive: Reminder controls (Streamlit widgets)
+    render_reminder_card()
 
-    if latest_df.empty:
-        st.info(tr("This report has no saved results.", "هذا التقرير لا يحتوي على نتائج محفوظة."))
+    # Interactive: Timeline chart for selected nutrient
+    nutrient_names = nutrient_names_from_reports(reports)
+    if nutrient_names:
+        selected_nutrient = st.selectbox(
+            tr("Choose nutrient for timeline", "اختر العنصر لعرض الخط الزمني"),
+            options=nutrient_names,
+            index=0,
+            format_func=nutrient_display_name,
+            key="tracking_selected_nutrient",
+        )
+        render_selected_nutrient_timeline(reports, selected_nutrient)
+
+    # Report History (collapsed)
+    with st.expander(tr("Report History", "سجل التقارير"), expanded=False):
         render_report_history_table(reports)
-        return
-
-    render_dashboard_result_cards(latest_df)
-    render_dashboard_charts(latest_df)
-    render_dashboard_filters_table(latest_df, key_prefix="latest_dashboard")
-    render_dashboard_recommendations(latest_df)
-    render_dashboard_snapshot(latest_df)
-
-    render_report_history_table(reports)
-    selected_report = selected_report_from_history(reports)
-    selected_df = report_to_df(selected_report)
-    section_title(tr("Selected Report Review", "مراجعة التقرير المحدد"), 22, "")
-    st.caption(report_option_label(selected_report))
-    render_report_actions(selected_report, selected_df, key_prefix="selected")
-
-    if selected_report.get("report_id") != latest.get("report_id"):
-        if selected_df.empty:
-            st.info(tr("This report has no saved results.", "هذا التقرير لا يحتوي على نتائج محفوظة."))
-        else:
-            render_dashboard_result_cards(selected_df)
-            render_dashboard_charts(selected_df)
-            render_dashboard_filters_table(selected_df, key_prefix="selected_dashboard")
-            render_dashboard_recommendations(selected_df)
-            render_dashboard_snapshot(selected_df)
+        render_report_actions(latest, latest_df, key_prefix="latest")
 
 # =========================================
 # Session state
@@ -3572,8 +3001,6 @@ with home_tab:
 # DASHBOARD TAB
 # =========================================
 with dashboard_tab:
-    render_dashboard_styles()
-
     results_df = st.session_state.get("results_df", pd.DataFrame())
     if not results_df.empty:
         save_analysis_report(results_df, tr("Current Session", "الجلسة الحالية"))
@@ -3581,13 +3008,12 @@ with dashboard_tab:
     dir_val = "rtl" if is_arabic else "ltr"
     align = "right" if is_arabic else "left"
 
-    render_dashboard_header()
-
     if not reports:
         st.html(f"""
-<div class="vv-dashboard-empty" style="direction:{dir_val}; text-align:{align};">
-    <div class="vv-dashboard-panel-title">{safe_html(tr("No Analysis Results Yet", "لا توجد نتائج تحليل بعد"))}</div>
-    <div class="vv-dashboard-panel-subtitle">
+<div style="background:rgba(255,255,255,0.03); border:1px dashed rgba(0,191,255,0.20);
+    border-radius:14px; padding:36px; color:#7A9BB5; text-align:center; direction:{dir_val};">
+    <div style="font-size:16px; font-weight:700; margin-bottom:8px;">{safe_html(tr("No Analysis Results Yet", "لا توجد نتائج تحليل بعد"))}</div>
+    <div style="font-size:13px;">
         {safe_html(tr(
             "Enter lab values manually or upload a CSV file from the Home tab, then run the analysis to unlock the dashboard.",
             "أدخل قيم التحاليل يدويًا أو ارفع ملف CSV من تبويب الرئيسية، ثم شغل التحليل لتظهر لوحة التحكم."
@@ -3596,86 +3022,108 @@ with dashboard_tab:
 </div>
 """)
     else:
-        render_report_dashboard(reports)
+        dashboard_v2.render(reports, ctx={
+            "tr": tr,
+            "is_arabic": is_arabic,
+            "is_light_theme": is_light_theme,
+            "nutrient_display_name": nutrient_display_name,
+            "status_text": status_text,
+            "status_color": status_color,
+            "get_possible_causes": get_possible_causes,
+            "get_recommendations": get_recommendations,
+            "load_reminder": load_reminder,
+            "save_reminder": save_reminder,
+            "delete_reminder": delete_reminder,
+            "days_until_next_test": days_until_next_test,
+            "nutrient_readings_from_reports": nutrient_readings_from_reports,
+            "report_to_df": report_to_df,
+            "report_display_date": report_display_date,
+            "delete_analysis_report": delete_analysis_report,
+        })
 
 # =========================================
-# ABOUT TAB
+# ABOUT TAB (About + Contact merged)
 # =========================================
 with about_tab:
     dir_val = "rtl" if is_arabic else "ltr"
     align   = "right" if is_arabic else "left"
 
-    cards = [
-        {
-            "icon": "",
-            "title": tr("About VitaVision", "عن VitaVision"),
-            "text": tr(
-                "VitaVision is an intelligent decision-support system designed to simplify the interpretation of vitamin and mineral laboratory results. It transforms raw lab values into meaningful health insights, helping users quickly understand whether their levels fall within a healthy range.",
-                "VitaVision هو نظام ذكي لدعم اتخاذ القرار مصمم لتبسيط تفسير نتائج تحاليل الفيتامينات والمعادن، حيث يحول القيم المخبرية إلى معلومات صحية مفهومة تساعد المستخدم على معرفة حالته بسهولة."
-            ),
-            "items": [
-                tr("Provides instant classification of lab results", "تصنيف فوري لنتائج التحاليل"),
-                tr("Uses scientifically defined reference ranges", "يعتمد على نطاقات مرجعية علمية"),
-                tr("Offers simplified explanations for better understanding", "يقدم شرح مبسط لفهم أفضل"),
-                tr("Designed as an educational and supportive tool", "مصمم كأداة تعليمية داعمة"),
-            ],
-        },
-        {
-            "icon": "",
-            "title": tr("Project Scope", "نطاق المشروع"),
-            "text": tr(
-                "The VitaVision system focuses on analyzing vitamin and mineral lab results by classifying them into Deficient, Normal, or Excessive categories. It enhances user understanding by providing contextual explanations, possible causes, and actionable recommendations.",
-                "يركز نظام VitaVision على تحليل نتائج الفيتامينات والمعادن وتصنيفها إلى ناقص أو طبيعي أو مرتفع، مع تقديم تفسير واضح وأسباب محتملة وتوصيات عملية تساعد المستخدم."
-            ),
-            "items": [
-                tr("Supports multiple nutrients and lab indicators", "يدعم عدة عناصر غذائية وتحاليل"),
-                tr("Provides visual comparison with reference ranges", "يعرض مقارنة بصرية مع النطاق الطبيعي"),
-                tr("Includes both manual input and CSV upload", "يدعم الإدخال اليدوي ورفع CSV"),
-                tr("Helps users make informed health decisions", "يساعد المستخدم على اتخاذ قرارات صحية واعية"),
-            ],
-        },
-        {
-            "icon": "",
-            "title": tr("Alignment with Saudi Vision 2030", "التوافق مع رؤية السعودية 2030"),
-            "text": tr(
-                "VitaVision supports Saudi Vision 2030 by promoting digital transformation in the healthcare sector. It enhances health awareness, empowers individuals to better understand their medical data, and contributes to improving the overall quality of life through smart health solutions.",
-                "يدعم مشروع VitaVision رؤية السعودية 2030 من خلال تعزيز التحول الرقمي في القطاع الصحي، ورفع الوعي الصحي، وتمكين الأفراد من فهم بياناتهم الطبية بشكل أفضل، والمساهمة في تحسين جودة الحياة عبر حلول صحية ذكية."
-            ),
-            "items": [
-                tr("Supports digital health transformation", "يدعم التحول الرقمي الصحي"),
-                tr("Enhances health awareness in society", "يعزز الوعي الصحي في المجتمع"),
-                tr("Empowers individuals with health insights", "يمكن الأفراد من فهم حالتهم الصحية"),
-                tr("Contributes to improving quality of life", "يساهم في تحسين جودة الحياة"),
-            ],
-        },
-        {
-            "icon": "",
-            "title": tr("How It Works", "كيف يعمل النظام"),
-            "text": tr(
-                "The system analyzes each nutrient value by comparing it against medically defined reference ranges. It then classifies the result and enhances it using intelligent logic to generate explanations, possible causes, and recommendations.",
-                "يقوم النظام بتحليل كل قيمة غذائية بمقارنتها مع النطاقات المرجعية الطبية، ثم يصنف النتيجة ويضيف شرحًا ذكيًا مع الأسباب المحتملة والتوصيات."
-            ),
-            "items": [
-                tr("Input → Processing → Classification", "إدخال ← معالجة ← تصنيف"),
-                tr("Rule-based + Intelligent logic", "يعتمد على قواعد + منطق ذكي"),
-                tr("Generates explanations and recommendations", "يولد شرح وتوصيات"),
-            ],
-        },
-    ]
-
-    for card in cards:
-        items_html = "".join(f"<li>{it}</li>" for it in card["items"])
-        st.html(f"""
+    # About VitaVision
+    st.html(f"""
 <div class="vv-card" style="direction:{dir_val}; text-align:{align};">
-    <div class="vv-card-title">
-        <span style="margin-{'left' if not is_arabic else 'right'}:8px;">{card['icon']}</span>{card['title']}
+    <div class="vv-card-title">{tr("About VitaVision", "عن VitaVision")}</div>
+    <div class="vv-card-text">
+        {tr(
+            "VitaVision is an intelligent health tool that helps you interpret vitamin and mineral lab results instantly. "
+            "It classifies your values as Deficient, Normal, or Excessive using medical reference ranges and a trained ML model, "
+            "then provides clear explanations and recommendations.",
+            "VitaVision أداة صحية ذكية تساعدك على تفسير نتائج تحاليل الفيتامينات والمعادن بشكل فوري. "
+            "يصنف قيمك إلى ناقص أو طبيعي أو مرتفع باستخدام نطاقات مرجعية طبية ونموذج ذكاء اصطناعي مدرّب، "
+            "ثم يقدم شرحاً واضحاً وتوصيات عملية."
+        )}
     </div>
-    <div class="vv-card-text">{card['text']}</div>
-    <ul class="vv-card-list">{items_html}</ul>
 </div>
 """)
 
-    # Disclaimer banner
+    # How It Works
+    steps = [
+        tr("Enter your lab values manually or upload a CSV file", "أدخل قيم تحاليلك يدوياً أو ارفع ملف CSV"),
+        tr("The system classifies each value against medical reference ranges", "النظام يصنف كل قيمة مقارنة بالنطاقات المرجعية الطبية"),
+        tr("An ML model validates the classification with a confidence score", "نموذج ذكاء اصطناعي يؤكد التصنيف مع نسبة ثقة"),
+        tr("You receive explanations, possible causes, and recommendations", "تحصل على شرح وأسباب محتملة وتوصيات"),
+    ]
+    steps_html = "".join(
+        f'<li style="margin-bottom:10px; color:var(--text-secondary, #B8C8D8);">'
+        f'<span style="color:#00BFFF; font-weight:700;">{i+1}.</span> {step}</li>'
+        for i, step in enumerate(steps)
+    )
+    st.html(f"""
+<div class="vv-card" style="direction:{dir_val}; text-align:{align};">
+    <div class="vv-card-title">{tr("How It Works", "كيف يعمل")}</div>
+    <ul style="list-style:none; padding:0; margin:12px 0 0;">{steps_html}</ul>
+</div>
+""")
+
+    # Contact section
+    st.html(f"""
+<div class="vv-card" style="direction:{dir_val}; text-align:{align};">
+    <div class="vv-card-title">{tr("Contact", "تواصل")}</div>
+    <div class="vv-card-text" style="margin-bottom:16px;">
+        {tr(
+            "For inquiries or feedback:",
+            "للاستفسارات أو الملاحظات:"
+        )}
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px;">
+        <div style="background:rgba(0,191,255,0.05); border:1px solid rgba(0,191,255,0.18);
+                    border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:20px;">📧</span>
+            <div>
+                <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase;">Email</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text-secondary, #B8C8D8);">—</div>
+            </div>
+        </div>
+        <div style="background:rgba(0,119,181,0.07); border:1px solid rgba(0,119,181,0.25);
+                    border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:20px;">🔗</span>
+            <div>
+                <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase;">LinkedIn</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text-secondary, #B8C8D8);">—</div>
+            </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.12);
+                    border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:20px;">💻</span>
+            <div>
+                <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase;">GitHub</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text-secondary, #B8C8D8);">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+""")
+
+    # Medical disclaimer
     st.html(f"""
 <div class="disclaimer-banner" style="direction:{dir_val};">
     <span class="disclaimer-icon"></span>
@@ -3683,75 +3131,10 @@ with about_tab:
         <div class="disclaimer-title">{tr("Medical Disclaimer", "تنبيه طبي")}</div>
         <div class="disclaimer-text" style="text-align:{align};">
             {tr(
-                "This result is not a medical diagnosis. Please consult a healthcare professional before making any medical decision.",
-                "هذه النتيجة ليست تشخيصًا طبيًا. يرجى استشارة مختص صحي قبل اتخاذ أي قرار طبي."
+                "This tool is for educational purposes only. It does not replace medical diagnosis or professional consultation.",
+                "هذه الأداة لأغراض تعليمية فقط. لا تغني عن التشخيص الطبي أو الاستشارة المهنية."
             )}
         </div>
-    </div>
-</div>
-""")
-
-# =========================================
-# CONTACT TAB
-# =========================================
-with contact_tab:
-    dir_val = "rtl" if is_arabic else "ltr"
-    align   = "right" if is_arabic else "left"
-
-    st.html(f"""
-<div class="vv-card" style="direction:{dir_val}; text-align:{align};">
-    <div class="vv-card-title">  {tr("Contact Us", "تواصل معنا")}</div>
-    <div class="vv-card-text" style="margin-bottom:20px;">
-        {tr(
-            "For any inquiries or feedback, feel free to reach out through the following channels:",
-            "لأي استفسار أو ملاحظات، تواصل معنا عبر القنوات التالية:"
-        )}
-    </div>
-
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px;">
-
-        <a href="mailto:your@email.com" style="text-decoration:none;">
-            <div style="background:rgba(0,191,255,0.05); border:1px solid rgba(0,191,255,0.18);
-                        border-radius:12px; padding:16px 18px; transition:all 0.2s;
-                        display:flex; align-items:center; gap:12px;"
-                 onmouseover="this.style.borderColor='rgba(0,191,255,0.50)';this.style.background='rgba(0,191,255,0.10)'"
-                 onmouseout="this.style.borderColor='rgba(0,191,255,0.18)';this.style.background='rgba(0,191,255,0.05)'">
-                <span style="font-size:22px;">📧</span>
-                <div>
-                    <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase; letter-spacing:0.5px;">Email</div>
-                    <div style="font-size:14px; font-weight:600; color:#B8C8D8;">your@email.com</div>
-                </div>
-            </div>
-        </a>
-
-        <a href="https://linkedin.com/in/yourname" target="_blank" style="text-decoration:none;">
-            <div style="background:rgba(0,119,181,0.07); border:1px solid rgba(0,119,181,0.25);
-                        border-radius:12px; padding:16px 18px; transition:all 0.2s;
-                        display:flex; align-items:center; gap:12px;"
-                 onmouseover="this.style.borderColor='rgba(0,119,181,0.55)';this.style.background='rgba(0,119,181,0.14)'"
-                 onmouseout="this.style.borderColor='rgba(0,119,181,0.25)';this.style.background='rgba(0,119,181,0.07)'">
-                <span style="font-size:22px;">🔗</span>
-                <div>
-                    <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase; letter-spacing:0.5px;">LinkedIn</div>
-                    <div style="font-size:14px; font-weight:600; color:#B8C8D8;">linkedin.com/in/yourname</div>
-                </div>
-            </div>
-        </a>
-
-        <a href="https://github.com/yourname" target="_blank" style="text-decoration:none;">
-            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.12);
-                        border-radius:12px; padding:16px 18px; transition:all 0.2s;
-                        display:flex; align-items:center; gap:12px;"
-                 onmouseover="this.style.borderColor='rgba(255,255,255,0.30)';this.style.background='rgba(255,255,255,0.07)'"
-                 onmouseout="this.style.borderColor='rgba(255,255,255,0.12)';this.style.background='rgba(255,255,255,0.03)'">
-                <span style="font-size:22px;">💻</span>
-                <div>
-                    <div style="font-size:11px; color:#7A9BB5; text-transform:uppercase; letter-spacing:0.5px;">GitHub</div>
-                    <div style="font-size:14px; font-weight:600; color:#B8C8D8;">github.com/yourname</div>
-                </div>
-            </div>
-        </a>
-
     </div>
 </div>
 """)
