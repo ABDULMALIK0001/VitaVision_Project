@@ -6,6 +6,7 @@ import html
 import json
 import hashlib
 import joblib
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime, date, timedelta
 
@@ -20,11 +21,28 @@ st.set_page_config(
     layout="wide"
 )
 
+DISCLAIMER_QUERY_KEY = "vv_disclaimer"
+HISTORY_ARCHIVE_SCHEMA_VERSION = 1
+HISTORY_ARCHIVE_APP = "VitaVision"
+HISTORY_ARCHIVE_ATTACHMENT_NAME = "vitavision_history.json"
+
+
+def query_param_value(key):
+    value = st.query_params.get(key)
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 if "language" not in st.session_state:
     st.session_state["language"] = "English"
 
+disclaimer_agreed_from_url = query_param_value(DISCLAIMER_QUERY_KEY) == "accepted"
+
 if "disclaimer_agreed" not in st.session_state:
-    st.session_state["disclaimer_agreed"] = False
+    st.session_state["disclaimer_agreed"] = disclaimer_agreed_from_url
+elif disclaimer_agreed_from_url:
+    st.session_state["disclaimer_agreed"] = True
 
 if "theme_mode" not in st.session_state:
     st.session_state["theme_mode"] = "Dark"
@@ -46,36 +64,21 @@ def show_disclaimer():
     is_ar = disclaimer_lang == "العربية"
 
     if not is_ar:
-        title = "⚠️Medical Disclaimer⚠️"
+        title = "Medical Disclaimer"
         text = (
-            "VitaVision provides health-related insights based on laboratory values and predefined medical reference ranges. "
-            "It is intended for educational and awareness purposes only, and should not be considered a substitute for medical diagnosis, "
-            "consultation, or treatment.\n\n"
-            "Although VitaVision aims to provide useful and accurate interpretations, it does not take into account the user's medical history, "
-            "health conditions, medications, or other clinical factors that may affect the results.\n\n"
-            "By using VitaVision, you acknowledge the following:\n"
-            "• The results are generated automatically and may not fully reflect your health condition.\n"
-            "• VitaVision does not replace consultation with a licensed doctor or healthcare professional.\n"
-            "• Any medical decisions should only be made after consulting a qualified specialist.\n\n"
-            "You also agree to use VitaVision responsibly and understand that the developers are not responsible for any misuse, "
-            "misinterpretation, or decisions made based on the provided information.\n\n"
-            "If you have symptoms or abnormal results, please seek professional medical advice immediately."
+            "VitaVision is an educational awareness tool that interprets vitamin and mineral lab values using reference ranges "
+            "and a machine-learning model.\n\n"
+            "It does not replace medical diagnosis, consultation, or treatment. The app does not know your full medical history, "
+            "medications, symptoms, or clinical context.\n\n"
+            "Use the results as guidance only. If you have symptoms, abnormal values, or concerns, consult a qualified healthcare professional."
         )
         button_text = "I Agree and Continue"
     else:
-        title = "⚠️تنبيه طبي⚠️"
+        title = "تنبيه طبي"
         text = (
-            "يقدم نظام VitaVision معلومات وتحليلات صحية مبنية على نتائج الفحوصات المخبرية ونطاقات مرجعية طبية محددة، "
-            "وهو مخصص لأغراض تعليمية وتوعوية فقط، ولا يُعتبر بديلاً عن التشخيص الطبي أو الاستشارة أو العلاج.\n\n"
-            "رغم أن نظام VitaVision يسعى لتقديم تفسيرات دقيقة ومفيدة، إلا أنه لا يأخذ بعين الاعتبار التاريخ الطبي "
-            "للمستخدم أو الحالات الصحية أو الأدوية أو العوامل السريرية الأخرى التي قد تؤثر على النتائج.\n\n"
-            "باستخدامك لنظام VitaVision، فإنك تقر بما يلي:\n"
-            "• النتائج يتم توليدها بشكل آلي وقد لا تعكس حالتك الصحية بشكل كامل.\n"
-            "• لا يغني نظام VitaVision عن استشارة طبيب أو مختص صحي مرخص.\n"
-            "• أي قرارات طبية يجب أن تتم فقط بعد الرجوع إلى مختص مؤهل.\n\n"
-            "كما توافق على استخدام نظام VitaVision بمسؤولية، وتدرك أن مطوري التطبيق غير مسؤولين عن أي استخدام "
-            "خاطئ أو تفسير غير دقيق أو قرارات يتم اتخاذها بناءً على هذه المعلومات.\n\n"
-            "في حال وجود أي أعراض أو نتائج غير طبيعية، يرجى مراجعة مختص صحي بشكل فوري."
+            "VitaVision أداة تعليمية وتوعوية تفسر قيم الفيتامينات والمعادن باستخدام نطاقات مرجعية ونموذج ذكاء اصطناعي.\n\n"
+            "لا يغني التطبيق عن التشخيص الطبي أو الاستشارة أو العلاج، ولا يعرف تاريخك الطبي الكامل أو الأدوية أو الأعراض أو السياق السريري.\n\n"
+            "استخدم النتائج كإرشاد عام فقط. إذا كانت لديك أعراض أو قيم غير طبيعية أو أي قلق صحي، فاستشر مختصًا صحيًا مؤهلًا."
         )
         button_text = "أوافق وأتابع"
 
@@ -88,38 +91,40 @@ def show_disclaimer():
 <div style="
     border: 1px solid rgba(0,191,255,0.4);
     border-radius: 18px;
-    padding: 28px 30px;
+    padding: 22px 24px;
     background: linear-gradient(145deg, rgba(0,15,30,0.98), rgba(0,25,45,0.95));
     box-shadow: 0 8px 40px rgba(0,191,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04);
 ">
     <div style="
         text-align: center;
         color: #00BFFF;
-        font-size: 22px;
+        font-size: 21px;
         font-weight: 800;
-        margin-bottom: 22px;
+        margin-bottom: 16px;
         letter-spacing: 0.3px;
         font-family: 'Segoe UI', sans-serif;
     ">
-        {title}
+        ⚠️ {title}
     </div>
     <div style="
         width: 60px;
         height: 2px;
-        margin: 0 auto 22px;
+        margin: 0 auto 16px;
         border-radius: 2px;
     "></div>
     <div style="
         color: #D8E8F0;
         font-size: 14.5px;
-        line-height: 1.9;
+        line-height: 1.75;
         direction: {dir_val};
         text-align: {align_val};
         font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
         background: rgba(0,191,255,0.03);
         border-radius: 12px;
-        padding: 18px 20px;
+        padding: 16px 18px;
         border: 1px solid rgba(0,191,255,0.1);
+        max-height: min(46vh, 360px);
+        overflow-y: auto;
     ">
         {formatted_text}
     </div>
@@ -132,6 +137,7 @@ def show_disclaimer():
         st.session_state["language"] = disclaimer_lang
         st.session_state["main_language"] = disclaimer_lang
         st.session_state["disclaimer_agreed"] = True
+        st.query_params[DISCLAIMER_QUERY_KEY] = "accepted"
         st.rerun()
 
 
@@ -519,9 +525,8 @@ if st.session_state.get("language_segment") not in ["English", "العربية"]
 
 with lang_center:
     language = st.segmented_control(
-        "",
+        "Language / اللغة",
         ["English", "العربية"],
-        default=st.session_state["language_segment"],
         format_func=lambda value: "EN" if value == "English" else "AR",
         label_visibility="collapsed",
         key="language_segment",
@@ -547,9 +552,8 @@ if st.session_state.get("theme_segment") not in ["Dark", "Light"]:
 
 with theme_center:
     theme_mode = st.segmented_control(
-        "",
+        "Theme / المظهر",
         ["Dark", "Light"],
-        default=st.session_state["theme_segment"],
         format_func=lambda value: theme_labels[value],
         label_visibility="collapsed",
         key="theme_segment",
@@ -639,16 +643,20 @@ html, body, [data-testid="stAppViewContainer"] {{
 
 [data-testid="stSegmentedControl"] {{
     width: fit-content !important;
+    max-width: 100% !important;
     margin-left: auto !important;
-    margin-right: 0 !important;
+    margin-right: auto !important;
 }}
 
 [data-testid="stSegmentedControl"] div[role="group"] {{
     width: fit-content !important;
+    max-width: 100% !important;
     display: inline-flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     align-items: center !important;
+    justify-content: center !important;
+    overflow-x: auto !important;
     background: var(--settings-bg) !important;
     border: 1px solid var(--border-soft) !important;
     border-radius: 999px !important;
@@ -678,14 +686,27 @@ html, body, [data-testid="stAppViewContainer"] {{
     box-shadow: inset 0 0 0 1px rgba(0,191,255,0.24) !important;
 }}
 
+.st-key-main_nav_container {{
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+}}
+
+.st-key-main_nav_container [data-testid="stSegmentedControl"] {{
+    margin-left: auto !important;
+    margin-right: auto !important;
+}}
+
 div[role="radiogroup"][aria-label="button group"] {{
     width: fit-content !important;
+    max-width: 100% !important;
     display: inline-flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     align-items: center !important;
     margin-left: auto !important;
-    margin-right: 0 !important;
+    margin-right: auto !important;
+    overflow-x: auto !important;
     background: var(--settings-bg) !important;
     border: 1px solid var(--border-soft) !important;
     border-radius: 999px !important;
@@ -717,14 +738,14 @@ div[role="radiogroup"][aria-label="button group"] button[class*="e7msn5c13"] {{
 }}
 
 [data-testid="stRadio"] {{
-    max-width: 620px !important;
+    max-width: 760px !important;
     margin-top: -2px !important;
     margin-bottom: 26px !important;
 }}
 
 [data-testid="stRadio"] div[role="radiogroup"] {{
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 10px !important;
     padding: 6px !important;
     border: 1px solid var(--border-soft) !important;
@@ -777,6 +798,20 @@ div[role="radiogroup"][aria-label="button group"] button[class*="e7msn5c13"] {{
 }}
 
 @media (max-width: 640px) {{
+    [data-testid="stSegmentedControl"],
+    [data-testid="stSegmentedControl"] div[role="group"],
+    div[role="radiogroup"][aria-label="button group"] {{
+        width: 100% !important;
+    }}
+
+    [data-testid="stSegmentedControl"] button,
+    div[role="radiogroup"][aria-label="button group"] button {{
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }}
+
     [data-testid="stRadio"] div[role="radiogroup"] {{
         grid-template-columns: 1fr !important;
     }}
@@ -1089,11 +1124,33 @@ def render_header():
 # =========================================
 render_header()
 
-home_tab, dashboard_tab, about_tab = st.tabs([
-    tr("Home", " الرئيسية"),
-    tr("Dashboard", "لوحة التحكم"),
-    tr("About", "حول"),
-])
+nav_options = ["home", "dashboard", "about"]
+if st.session_state.get("active_nav") not in nav_options:
+    st.session_state["active_nav"] = "home"
+
+nav_labels = {
+    "home": tr("Home", "الرئيسية"),
+    "dashboard": tr("Dashboard", "لوحة التحكم"),
+    "about": tr("About", "حول"),
+}
+
+with st.container(
+    key="main_nav_container",
+    horizontal=True,
+    horizontal_alignment="center",
+    vertical_alignment="center",
+):
+    active_tab = st.segmented_control(
+        tr("Navigation", "التنقل"),
+        nav_options,
+        format_func=lambda value: nav_labels[value],
+        label_visibility="collapsed",
+        key="active_nav",
+        width="content",
+    )
+
+if active_tab is None:
+    active_tab = "home"
 
 # =========================================
 # Reference ranges (unchanged)
@@ -1161,6 +1218,24 @@ def nutrient_display_name(nutrient):
         "B6":        tr("Vitamin B6", "فيتامين B6"),
         "Calcium":   tr("Calcium",    "الكالسيوم"),
         "Ferritin":  tr("Ferritin",   "الفيريتين"),
+    }
+    return names.get(nutrient, nutrient)
+
+def nutrient_display_name_en(nutrient):
+    nutrient = normalize_nutrient_name(nutrient)
+    names = {
+        "Zinc": "Zinc",
+        "Vitamin_E": "Vitamin E",
+        "Vitamin_A": "Vitamin A",
+        "Vitamin_D": "Vitamin D",
+        "Vitamin_C": "Vitamin C",
+        "Magnesium": "Magnesium",
+        "Folate": "Folate",
+        "Vitamin_K": "Vitamin K",
+        "B12": "Vitamin B12",
+        "B6": "Vitamin B6",
+        "Calcium": "Calcium",
+        "Ferritin": "Ferritin",
     }
     return names.get(nutrient, nutrient)
 
@@ -1728,9 +1803,6 @@ def render_summary_stats(df):
 # =========================================
 DASHBOARD_VALID_STATUSES = ["Normal", "Deficient", "Excessive"]
 DASHBOARD_STATUS_ORDER = ["Normal", "Deficient", "Excessive", "Invalid", "Unknown", "Error"]
-REPORTS_FILE = Path(__file__).resolve().parent / "reports" / "vitavision_reports.json"
-REMINDER_FILE = Path(__file__).resolve().parent / "reports" / "reminder.json"
-REPORT_SCHEMA_VERSION = 1
 REPORT_RESULT_COLUMNS = [
     "Age", "Gender", "Nutrient", "Value", "Unit", "Low", "High",
     "Status", "ML Prediction", "ML Confidence", "Model Agreement",
@@ -1822,14 +1894,7 @@ def report_overall_status_text(status):
     }.get(status, status)
 
 def load_report_history():
-    if not REPORTS_FILE.exists():
-        return []
-    try:
-        payload = json.loads(REPORTS_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-
-    reports = payload.get("reports", payload if isinstance(payload, list) else [])
+    reports = st.session_state.get("report_history", [])
     if not isinstance(reports, list):
         return []
 
@@ -1839,40 +1904,24 @@ def load_report_history():
     )
 
 def save_report_history(reports):
-    REPORTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "schema_version": REPORT_SCHEMA_VERSION,
-        "reports": reports,
-    }
-    REPORTS_FILE.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    st.session_state["report_history"] = sorted(
+        [report for report in reports if isinstance(report, dict)],
+        key=lambda report: str(report.get("created_at", "")),
     )
 
 def load_reminder():
-    if not REMINDER_FILE.exists():
-        return None
-    try:
-        data = json.loads(REMINDER_FILE.read_text(encoding="utf-8"))
-        return data
-    except Exception:
-        return None
+    reminder = st.session_state.get("reminder")
+    return reminder if isinstance(reminder, dict) else None
 
 def save_reminder(next_date, interval_months):
-    REMINDER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
+    st.session_state["reminder"] = {
         "next_test_date": next_date.isoformat(),
         "interval_months": interval_months,
         "created_at": datetime.now().isoformat(),
     }
-    REMINDER_FILE.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
 
 def delete_reminder():
-    if REMINDER_FILE.exists():
-        REMINDER_FILE.unlink()
+    st.session_state.pop("reminder", None)
 
 def days_until_next_test():
     reminder = load_reminder()
@@ -1886,7 +1935,10 @@ def days_until_next_test():
         return None, None
 
 def refresh_report_history_state():
-    st.session_state["report_history"] = load_report_history()
+    if "report_history" not in st.session_state:
+        st.session_state["report_history"] = []
+    else:
+        st.session_state["report_history"] = load_report_history()
 
 def get_report_history():
     if "report_history" not in st.session_state:
@@ -1921,13 +1973,13 @@ def save_analysis_report(df, source):
         return None
 
     report = build_report(df, source)
-    reports = get_report_history()
+    reports = list(get_report_history())
     if any(existing.get("signature") == report["signature"] for existing in reports):
         return None
 
     reports.append(report)
     save_report_history(reports)
-    st.session_state["report_history"] = reports
+    reports = get_report_history()
     st.session_state["selected_report_id"] = report["report_id"]
     return report
 
@@ -1951,6 +2003,563 @@ def report_display_date(report):
         created_at.strftime("%b %d, %Y"),
         created_at.strftime("%Y/%m/%d"),
     )
+
+def report_display_date_en(report):
+    created_at = pd.to_datetime(report.get("created_at"), errors="coerce")
+    if pd.isna(created_at):
+        return "Unknown date"
+    return created_at.strftime("%Y-%m-%d")
+
+def clean_imported_result(record):
+    if not isinstance(record, dict):
+        return None
+
+    cleaned = {
+        str(key): report_json_value(value)
+        for key, value in record.items()
+    }
+    nutrient = normalize_nutrient_name(cleaned.get("Nutrient"))
+    if not nutrient or "Value" not in cleaned:
+        return None
+
+    cleaned["Nutrient"] = nutrient
+    cleaned["Status"] = str(cleaned.get("Status") or "Unknown")
+
+    if not str(cleaned.get("Unit", "")).strip():
+        nutrient_range = get_range(nutrient, cleaned.get("Gender", 1))
+        if nutrient_range:
+            cleaned["Unit"] = nutrient_range.get("unit", "")
+
+    for column in MODEL_RESULT_COLUMNS:
+        cleaned.setdefault(column, MODEL_UNAVAILABLE)
+
+    return cleaned
+
+def clean_report_summary(summary, results):
+    counts = report_counts(results)
+    if not isinstance(summary, dict):
+        return counts
+
+    for key in counts:
+        try:
+            counts[key] = max(int(summary.get(key, counts[key])), 0)
+        except (TypeError, ValueError):
+            pass
+    return counts
+
+def normalize_imported_report(report):
+    if not isinstance(report, dict):
+        return None
+
+    created_at = str(report.get("created_at", "")).strip()
+    parsed_date = pd.to_datetime(created_at, errors="coerce")
+    if not created_at or pd.isna(parsed_date):
+        return None
+
+    raw_results = report.get("results", [])
+    if not isinstance(raw_results, list):
+        return None
+
+    results = []
+    for result in raw_results:
+        cleaned = clean_imported_result(result)
+        if cleaned is None:
+            return None
+        results.append(cleaned)
+
+    if not results:
+        return None
+
+    signature = str(report.get("signature") or report_signature_from_records(results)).strip()
+    if not signature:
+        signature = report_signature_from_records(results)
+
+    report_id = str(report.get("report_id") or f"RPT-IMPORTED-{signature[:10].upper()}").strip()
+    summary = clean_report_summary(report.get("summary"), results)
+    overall_status = str(report.get("overall_status") or report_overall_status(summary))
+    source = str(report.get("source") or "Imported History").strip() or "Imported History"
+
+    return {
+        "report_id": report_id,
+        "created_at": parsed_date.isoformat(),
+        "source": source,
+        "signature": signature,
+        "summary": summary,
+        "overall_status": overall_status,
+        "results": results,
+    }
+
+def parse_history_archive_bytes(raw_bytes):
+    try:
+        archive = json.loads(raw_bytes.decode("utf-8-sig"))
+    except UnicodeDecodeError:
+        return [], tr(
+            "This VitaVision backup data is not readable.",
+            "بيانات نسخة VitaVision الاحتياطية غير قابلة للقراءة."
+        )
+    except json.JSONDecodeError:
+        return [], tr(
+            "This VitaVision backup data is not valid.",
+            "بيانات نسخة VitaVision الاحتياطية غير صالحة."
+        )
+
+    if not isinstance(archive, dict):
+        return [], tr(
+            "This is not a VitaVision history backup.",
+            "هذا الملف ليس نسخة احتياطية لسجل VitaVision."
+        )
+
+    if (
+        archive.get("schema_version") != HISTORY_ARCHIVE_SCHEMA_VERSION
+        or archive.get("app") != HISTORY_ARCHIVE_APP
+        or "exported_at" not in archive
+        or "reports" not in archive
+    ):
+        return [], tr(
+            "This file does not contain valid VitaVision history data.",
+            "هذا الملف لا يحتوي على بيانات سجل VitaVision صالحة."
+        )
+
+    reports = archive.get("reports")
+    if not isinstance(reports, list):
+        return [], tr(
+            "The backup file is missing a valid reports list.",
+            "ملف النسخة الاحتياطية لا يحتوي على قائمة تقارير صالحة."
+        )
+
+    normalized_reports = []
+    for report in reports:
+        normalized_report = normalize_imported_report(report)
+        if normalized_report is None:
+            return [], tr(
+                "The backup contains unsupported report data and was not imported.",
+                "تحتوي النسخة الاحتياطية على بيانات تقارير غير مدعومة ولم يتم استيرادها."
+            )
+        normalized_reports.append(normalized_report)
+
+    return normalized_reports, None
+
+def embedded_pdf_attachment_bytes(reader):
+    attachments = getattr(reader, "attachments", None) or {}
+    if not attachments:
+        return None
+
+    preferred_names = [HISTORY_ARCHIVE_ATTACHMENT_NAME]
+    preferred_names.extend(
+        name for name in attachments.keys()
+        if str(name).lower().endswith(".json") and name not in preferred_names
+    )
+
+    for name in preferred_names:
+        payload = attachments.get(name)
+        candidates = payload if isinstance(payload, list) else [payload]
+        for candidate in candidates:
+            if isinstance(candidate, bytes):
+                return candidate
+            if isinstance(candidate, str):
+                return candidate.encode("utf-8")
+
+    return None
+
+def parse_history_pdf_bytes(raw_bytes):
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return [], tr(
+            "PDF restore needs pypdf. Install the app requirements, then restart VitaVision.",
+            "استرجاع PDF يحتاج مكتبة pypdf. ثبّت متطلبات التطبيق ثم أعد تشغيل VitaVision."
+        )
+
+    try:
+        reader = PdfReader(BytesIO(raw_bytes))
+    except Exception:
+        return [], tr(
+            "This is not a readable PDF file.",
+            "هذا الملف ليس PDF قابلًا للقراءة."
+        )
+
+    archive_bytes = embedded_pdf_attachment_bytes(reader)
+    if archive_bytes is None:
+        return [], tr(
+            "This PDF was not exported from VitaVision, or it does not contain restorable history data.",
+            "هذا الملف لم يتم تصديره من VitaVision، أو لا يحتوي على بيانات سجل قابلة للاسترجاع."
+        )
+
+    return parse_history_archive_bytes(archive_bytes)
+
+def merge_report_history(imported_reports):
+    reports = list(get_report_history())
+    existing_signatures = {
+        str(report.get("signature", "")).strip()
+        for report in reports
+        if str(report.get("signature", "")).strip()
+    }
+    existing_report_ids = {
+        str(report.get("report_id", "")).strip()
+        for report in reports
+        if str(report.get("report_id", "")).strip()
+    }
+
+    added = 0
+    duplicates = 0
+    for report in imported_reports:
+        signature = str(report.get("signature", "")).strip()
+        report_id = str(report.get("report_id", "")).strip()
+
+        if signature and signature in existing_signatures:
+            duplicates += 1
+            continue
+        if report_id and report_id in existing_report_ids:
+            duplicates += 1
+            continue
+
+        reports.append(report)
+        if signature:
+            existing_signatures.add(signature)
+        if report_id:
+            existing_report_ids.add(report_id)
+        added += 1
+
+    if added:
+        save_report_history(reports)
+        saved_reports = get_report_history()
+        if saved_reports:
+            st.session_state["selected_report_id"] = saved_reports[-1].get("report_id")
+
+    return added, duplicates
+
+def build_history_archive(reports):
+    safe_reports = json.loads(json.dumps(reports, ensure_ascii=False, default=str))
+    return {
+        "schema_version": HISTORY_ARCHIVE_SCHEMA_VERSION,
+        "app": HISTORY_ARCHIVE_APP,
+        "exported_at": datetime.now().isoformat(),
+        "reports": safe_reports,
+    }
+
+def build_history_archive_bytes(reports):
+    return json.dumps(
+        build_history_archive(reports),
+        ensure_ascii=False,
+        indent=2,
+        default=str,
+    ).encode("utf-8")
+
+def history_status_summary(reports):
+    summary = {
+        "Normal": 0,
+        "Deficient": 0,
+        "Excessive": 0,
+        "Invalid": 0,
+    }
+    for report in reports:
+        for result in report.get("results", []):
+            status = str(result.get("Status", "Invalid"))
+            if status in ["Normal", "Deficient", "Excessive"]:
+                summary[status] += 1
+            else:
+                summary["Invalid"] += 1
+    return summary
+
+def report_source_en(source):
+    source_text = str(source or "").strip()
+    lowered = source_text.lower()
+    if "csv" in lowered:
+        return "CSV Upload"
+    if "manual" in lowered:
+        return "Manual Input"
+    if "current" in lowered and "session" in lowered:
+        return "Current Session"
+    if "import" in lowered:
+        return "Imported History"
+    if not source_text:
+        return "Unknown"
+    return source_text if source_text.isascii() else "Imported History"
+
+def display_cell_value(value):
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value)
+
+def history_display_dataframe(reports):
+    columns = [
+        tr("Date", "التاريخ"),
+        tr("Source", "المصدر"),
+        tr("Nutrient", "العنصر"),
+        tr("Value", "القيمة"),
+        tr("Unit", "الوحدة"),
+        tr("Status", "الحالة"),
+    ]
+    rows = []
+    for report in sorted(reports, key=report_sort_value, reverse=True):
+        for result in report.get("results", []):
+            rows.append({
+                columns[0]: report_display_date(report),
+                columns[1]: report.get("source", ""),
+                columns[2]: nutrient_display_name(result.get("Nutrient", "")),
+                columns[3]: display_cell_value(result.get("Value", "")),
+                columns[4]: display_cell_value(result.get("Unit", "")),
+                columns[5]: status_text(str(result.get("Status", "Unknown"))),
+            })
+    return pd.DataFrame(rows, columns=columns)
+
+def history_pdf_rows(reports):
+    rows = []
+    for report in sorted(reports, key=report_sort_value, reverse=True):
+        for result in report.get("results", []):
+            status = str(result.get("Status", "Invalid"))
+            rows.append({
+                "Date": report_display_date_en(report),
+                "Source": report_source_en(report.get("source", "")),
+                "Nutrient": nutrient_display_name_en(result.get("Nutrient", "")),
+                "Value": display_cell_value(result.get("Value", "")),
+                "Unit": display_cell_value(result.get("Unit", "")),
+                "Status": status if status in ["Normal", "Deficient", "Excessive"] else "Invalid",
+            })
+    return rows
+
+def attach_history_archive_to_pdf(pdf_bytes, archive_bytes):
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        return None
+
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        writer.add_metadata({
+            "/Title": "VitaVision Report History",
+            "/Subject": "Readable and restorable VitaVision report history",
+            "/Creator": "VitaVision",
+            "/Producer": "VitaVision",
+            "/Keywords": "VitaVision,report history,restorable backup",
+        })
+        writer.add_attachment(HISTORY_ARCHIVE_ATTACHMENT_NAME, archive_bytes)
+        output = BytesIO()
+        writer.write(output)
+        return output.getvalue()
+    except Exception:
+        return None
+
+def build_history_pdf(reports):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError:
+        return None
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=12 * mm,
+        leftMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+        title="VitaVision Report History",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "VitaVisionTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor("#0E6081"),
+        spaceAfter=8,
+    )
+    body_style = ParagraphStyle(
+        "VitaVisionBody",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#263238"),
+    )
+    cell_style = ParagraphStyle(
+        "VitaVisionCell",
+        parent=body_style,
+        fontSize=8,
+        leading=10,
+    )
+    header_style = ParagraphStyle(
+        "VitaVisionHeader",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        textColor=colors.white,
+    )
+    footer_style = ParagraphStyle(
+        "VitaVisionFooter",
+        parent=body_style,
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#546E7A"),
+    )
+
+    summary = history_status_summary(reports)
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    status_line = (
+        f"Normal: {summary['Normal']} | "
+        f"Deficient: {summary['Deficient']} | "
+        f"Excessive: {summary['Excessive']} | "
+        f"Invalid: {summary['Invalid']}"
+    )
+
+    story = [
+        Paragraph("VitaVision Report History", title_style),
+        Paragraph(f"Generated at: {generated_at}", body_style),
+        Paragraph(f"Report count: {len(reports)}", body_style),
+        Paragraph(f"Status summary: {status_line}", body_style),
+        Spacer(1, 8),
+    ]
+
+    headers = ["Date", "Source", "Nutrient", "Value", "Unit", "Status"]
+    table_data = [[Paragraph(header, header_style) for header in headers]]
+    for row in history_pdf_rows(reports):
+        table_data.append([
+            Paragraph(html.escape(display_cell_value(row.get(header, ""))), cell_style)
+            for header in headers
+        ])
+
+    if len(table_data) == 1:
+        table_data.append([
+            Paragraph("No report rows available.", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+        ])
+
+    table = Table(
+        table_data,
+        colWidths=[30 * mm, 44 * mm, 56 * mm, 30 * mm, 30 * mm, 36 * mm],
+        repeatRows=1,
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E6081")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#B0BEC5")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F8FB")]),
+    ]))
+    story.append(table)
+    story.extend([
+        Spacer(1, 10),
+        Paragraph(
+            "Medical note: VitaVision is an educational awareness tool only and does not replace medical diagnosis, treatment, or consultation with a qualified healthcare professional.",
+            footer_style,
+        ),
+    ])
+
+    doc.build(story)
+    return attach_history_archive_to_pdf(
+        buffer.getvalue(),
+        build_history_archive_bytes(reports),
+    )
+
+def render_history_restore_panel():
+    section_title(tr("Restore Previous History", "استرجاع سجل سابق"), 22, "")
+    st.info(tr(
+        "Upload the VitaVision history PDF you downloaded earlier. The same PDF is readable and can restore your history.",
+        "ارفع ملف سجل VitaVision بصيغة PDF الذي حمّلته سابقًا. نفس ملف PDF قابل للقراءة ويمكنه استرجاع السجل."
+    ))
+
+    uploaded_history = st.file_uploader(
+        tr("Upload VitaVision History PDF", "رفع ملف سجل VitaVision PDF"),
+        type=["pdf"],
+        key="history_restore_upload",
+    )
+
+    if uploaded_history is None:
+        return
+
+    raw_bytes = uploaded_history.getvalue()
+    file_digest = hashlib.sha256(raw_bytes).hexdigest()
+
+    if st.session_state.get("last_history_import_hash") == file_digest:
+        st.info(tr(
+            "This file was already processed in this session. Your history was not duplicated.",
+            "تمت معالجة هذا الملف مسبقًا في هذه الجلسة، ولم يتم تكرار السجل."
+        ))
+        return
+
+    imported_reports, error_message = parse_history_pdf_bytes(raw_bytes)
+    if error_message:
+        st.error(error_message)
+        return
+
+    added, duplicates = merge_report_history(imported_reports)
+    st.session_state["last_history_import_hash"] = file_digest
+    st.session_state["last_history_import_result"] = {
+        "added": added,
+        "duplicates": duplicates,
+    }
+
+    if added:
+        st.success(tr(
+            f"Restored {added} report(s). Skipped {duplicates} duplicate(s). Open Dashboard to view the history.",
+            f"تم استرجاع {added} تقرير. تم تجاهل {duplicates} تقرير مكرر. افتح لوحة التحكم لعرض السجل."
+        ))
+    else:
+        st.info(tr(
+            f"No new reports were added. Skipped {duplicates} duplicate report(s).",
+            f"لم تتم إضافة تقارير جديدة. تم تجاهل {duplicates} تقرير مكرر."
+        ))
+
+def render_history_backup_panel(reports):
+    with st.expander(tr("Report History & Backup", "سجل التقارير والنسخ الاحتياطي"), expanded=False):
+        if not reports:
+            st.info(tr(
+                "Backup export becomes available after you analyze results or restore a VitaVision PDF history file from Home.",
+                "سيصبح التصدير متاحًا بعد تحليل نتائج أو استرجاع ملف سجل VitaVision PDF من الصفحة الرئيسية."
+            ))
+            return
+
+        history_df = history_display_dataframe(reports)
+        if history_df.empty:
+            st.info(tr(
+                "No report rows are available for export yet.",
+                "لا توجد صفوف تقارير متاحة للتصدير حتى الآن."
+            ))
+        else:
+            st.dataframe(history_df, use_container_width=True, hide_index=True)
+
+        st.caption(tr(
+            "This single PDF is readable by you and restorable by VitaVision later.",
+            "هذا ملف PDF واحد يمكنك قراءته، ويمكن لـ VitaVision استرجاع السجل منه لاحقًا."
+        ))
+
+        pdf_data = build_history_pdf(reports)
+        if pdf_data is None:
+            st.warning(tr(
+                "Smart PDF export needs ReportLab and pypdf. They are listed in requirements.txt; install dependencies and restart the app.",
+                "تصدير PDF الذكي يحتاج ReportLab و pypdf. تمت إضافتهما في requirements.txt؛ ثبّت المتطلبات ثم أعد تشغيل التطبيق."
+            ))
+        else:
+            st.download_button(
+                label=tr("Download History PDF", "تحميل ملف السجل PDF"),
+                data=pdf_data,
+                file_name="vitavision_report_history.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="history_backup_pdf_download",
+            )
 
 def latest_report():
     reports = get_report_history()
@@ -2728,18 +3337,19 @@ if st.session_state.get("language_changed", False):
 # =========================================
 # HOME TAB
 # =========================================
-with home_tab:
+if active_tab == "home":
     section_title(tr("Input Method", "طريقة الإدخال"), icon="")
 
+    manual_label = tr("Manual Input", "إدخال يدوي")
+    csv_label = tr("Upload CSV", "رفع CSV")
+    history_pdf_label = tr("Restore PDF", "استرجاع PDF")
+
     input_mode = st.radio(
-        "",
-        [tr("Manual Input", "إدخال يدوي"), tr("Upload CSV", "رفع CSV")],
+        tr("Input Method", "طريقة الإدخال"),
+        [manual_label, csv_label, history_pdf_label],
         label_visibility="collapsed",
         horizontal=True,
     )
-
-    manual_label = tr("Manual Input", "إدخال يدوي")
-    csv_label    = tr("Upload CSV",   "رفع CSV")
 
     # ── Manual input ──────────────────────────
     if input_mode == manual_label:
@@ -2751,7 +3361,11 @@ with home_tab:
         with col2:
             gender_text = st.selectbox(tr("Gender", "الجنس"), [tr("Male", "ذكر"), tr("Female", "أنثى")])
         with col3:
-            nutrient = st.selectbox(tr("Nutrient", "العنصر"), list(REFERENCE_RANGES.keys()) + ["Ferritin"])
+            nutrient = st.selectbox(
+                tr("Nutrient", "العنصر"),
+                list(REFERENCE_RANGES.keys()) + ["Ferritin"],
+                format_func=nutrient_display_name,
+            )
         with col4:
             value = st.number_input(tr("Value", "القيمة"), min_value=0.0, value=0.0, step=0.1)
 
@@ -2850,7 +3464,7 @@ with home_tab:
                     )
 
     # ── CSV input ──────────────────────────────
-    else:
+    elif input_mode == csv_label:
         section_title(tr("Upload CSV File", "رفع ملف CSV"), 22, "")
 
         st.html(f"""
@@ -2914,6 +3528,9 @@ with home_tab:
                         st.session_state["results_df"],
                         tr("CSV Upload", "رفع CSV"),
                     )
+
+    else:
+        render_history_restore_panel()
 
     # ── Results ────────────────────────────────
     results_df = st.session_state["results_df"]
@@ -3000,7 +3617,7 @@ with home_tab:
 # =========================================
 # DASHBOARD TAB
 # =========================================
-with dashboard_tab:
+if active_tab == "dashboard":
     results_df = st.session_state.get("results_df", pd.DataFrame())
     if not results_df.empty:
         save_analysis_report(results_df, tr("Current Session", "الجلسة الحالية"))
@@ -3021,6 +3638,10 @@ with dashboard_tab:
     </div>
 </div>
 """)
+        st.info(tr(
+            "Report History & Backup export becomes available after analysis or after restoring a VitaVision PDF history file from Home.",
+            "سيظهر تصدير سجل التقارير والنسخ الاحتياطي بعد التحليل أو بعد استرجاع ملف سجل VitaVision PDF من الصفحة الرئيسية."
+        ))
     else:
         dashboard_v2.render(reports, ctx={
             "tr": tr,
@@ -3040,11 +3661,12 @@ with dashboard_tab:
             "report_display_date": report_display_date,
             "delete_analysis_report": delete_analysis_report,
         })
+        render_history_backup_panel(reports)
 
 # =========================================
 # ABOUT TAB (About + Contact merged)
 # =========================================
-with about_tab:
+if active_tab == "about":
     dir_val = "rtl" if is_arabic else "ltr"
     align   = "right" if is_arabic else "left"
 
